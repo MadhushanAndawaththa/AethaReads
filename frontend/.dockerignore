@@ -1,0 +1,9 @@
+.git
+.env.local
+node_modules/
+.next/
+out/
+README.md
+.gitignore
+.idea/
+.vscode/

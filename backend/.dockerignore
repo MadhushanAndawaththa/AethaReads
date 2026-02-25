@@ -1,0 +1,10 @@
+.git
+.env
+tmp/
+server
+*.exe
+*.out
+README.md
+.gitignore
+.idea/
+.vscode/

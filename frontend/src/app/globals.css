@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@300;400;700&display=swap');
+
+@layer base {
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8f9fa;
+    --bg-card: #ffffff;
+    --text-primary: #1a1a2e;
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --border-color: #e5e7eb;
+    --accent: #4c6ef5;
+  }
+
+  .dark {
+    --bg-primary: #0f0f17;
+    --bg-secondary: #16161f;
+    --bg-card: #1c1c28;
+    --text-primary: #e5e5e5;
+    --text-secondary: #a0a0b0;
+    --text-muted: #6b6b80;
+    --border-color: #2a2a3a;
+    --accent: #5c7cfa;
+  }
+
+  .sepia {
+    --bg-primary: #f4ecd8;
+    --bg-secondary: #efe6d5;
+    --bg-card: #f0e8d0;
+    --text-primary: #5b4636;
+    --text-secondary: #7a6352;
+    --text-muted: #9a8672;
+    --border-color: #d4c9b0;
+    --accent: #8b6914;
+  }
+
+  body {
+    @apply bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-200;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl;
+  }
+
+  .btn-primary {
+    @apply bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg 
+           font-medium transition-colors duration-150 active:scale-[0.98];
+  }
+
+  .btn-secondary {
+    @apply bg-[var(--bg-secondary)] hover:bg-[var(--border-color)] text-[var(--text-primary)]
+           px-4 py-2 rounded-lg font-medium transition-colors duration-150 border border-[var(--border-color)];
+  }
+
+  .text-primary {
+    color: var(--text-primary);
+  }
+
+  .text-secondary {
+    color: var(--text-secondary);
+  }
+
+  .text-muted {
+    color: var(--text-muted);
+  }
+}
+
+/* Reader-specific styles */
+.reader-content p {
+  margin-bottom: 1.2em;
+}
+
+.reader-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Hide scrollbar on mobile */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  body {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Slide-out menu animation */
+.slide-in {
+  animation: slideIn 0.25s ease-out;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.slide-in-right {
+  animation: slideInRight 0.25s ease-out;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Mobile touch optimization */
+@media (pointer: coarse) {
+  button, a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

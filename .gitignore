@@ -1,0 +1,24 @@
+# Environment files (NEVER commit secrets)
+.env
+backend/.env
+frontend/.env.local
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker overrides
+docker-compose.override.yml
+
+# Logs
+*.log
+
+# Redis dump
+dump.rdb

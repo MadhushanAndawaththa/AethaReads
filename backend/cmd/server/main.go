@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"aetha-backend/internal/cache"
 	"aetha-backend/internal/config"
@@ -39,17 +42,16 @@ func main() {
 
 	// Prewarm cache with recent chapters
 	ctx := context.Background()
-	recentChapters, err := chapterRepo.GetRecentChapters(100)
+	recentChapters, err := chapterRepo.GetRecentChapters(ctx, 100)
 	if err == nil {
 		cacheService.PrewarmChapters(ctx, recentChapters)
 	}
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
-		AppName:      "Aetha Backend v1.0",
-		ServerHeader: "Aetha",
-		BodyLimit:    10 * 1024 * 1024, // 10MB
-		Prefork:      false,
+		AppName:   "Aetha Backend v1.0",
+		BodyLimit: 10 * 1024 * 1024, // 10MB
+		Prefork:   false,
 	})
 
 	// Setup handlers
@@ -57,6 +59,18 @@ func main() {
 
 	// Setup routes
 	router.Setup(app, novelHandler, cfg.Server.AllowedOrigins)
+
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-quit
+		log.Println("🛑 Shutting down gracefully...")
+		if err := app.Shutdown(); err != nil {
+			log.Printf("Server shutdown error: %v", err)
+		}
+	}()
 
 	// Start server
 	addr := ":" + cfg.Server.Port

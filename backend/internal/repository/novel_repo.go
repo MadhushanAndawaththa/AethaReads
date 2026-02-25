@@ -1,7 +1,9 @@
 package repository
 
 import (
-	"fmt"
+	"context"
+	"log"
+	"strconv"
 
 	"aetha-backend/internal/models"
 
@@ -16,31 +18,38 @@ func NewNovelRepository(db *sqlx.DB) *NovelRepository {
 	return &NovelRepository{db: db}
 }
 
-func (r *NovelRepository) GetAll(page, perPage int, sortBy, status, genre string) ([]models.Novel, int, error) {
+func (r *NovelRepository) GetAll(ctx context.Context, page, perPage int, sortBy, status, genre string) ([]models.Novel, int, error) {
 	offset := (page - 1) * perPage
 
-	// Build dynamic query
+	// Build shared filter clauses
 	where := "WHERE 1=1"
-	args := []interface{}{}
+	args := []any{}
 	argIdx := 1
 
 	if status != "" && status != "all" {
-		where += " AND n.status = $" + itoa(argIdx)
+		where += " AND n.status = $" + strconv.Itoa(argIdx)
 		args = append(args, status)
 		argIdx++
 	}
 
-	countQuery := "SELECT COUNT(*) FROM novels n " + where
+	joinClause := ""
 	if genre != "" {
-		countQuery = `SELECT COUNT(DISTINCT n.id) FROM novels n 
-			JOIN novel_genres ng ON n.id = ng.novel_id 
-			JOIN genres g ON ng.genre_id = g.id ` + where + " AND g.slug = $" + itoa(argIdx)
+		joinClause = `JOIN novel_genres ng ON n.id = ng.novel_id 
+			JOIN genres g ON ng.genre_id = g.id `
+		where += " AND g.slug = $" + strconv.Itoa(argIdx)
 		args = append(args, genre)
 		argIdx++
 	}
 
+	// Count query
+	distinct := ""
+	if genre != "" {
+		distinct = "DISTINCT "
+	}
+	countQuery := "SELECT COUNT(" + distinct + "n.id) FROM novels n " + joinClause + where
+
 	var total int
-	err := r.db.Get(&total, countQuery, args...)
+	err := r.db.GetContext(ctx, &total, countQuery, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -57,32 +66,16 @@ func (r *NovelRepository) GetAll(page, perPage int, sortBy, status, genre string
 		orderBy = "ORDER BY n.created_at DESC"
 	}
 
-	// Reset args for main query
-	args2 := []interface{}{}
-	where2 := "WHERE 1=1"
-	argIdx2 := 1
-
-	if status != "" && status != "all" {
-		where2 += " AND n.status = $" + itoa(argIdx2)
-		args2 = append(args2, status)
-		argIdx2++
-	}
-
-	query := "SELECT n.* FROM novels n "
+	selectDistinct := ""
 	if genre != "" {
-		query = `SELECT DISTINCT n.* FROM novels n 
-			JOIN novel_genres ng ON n.id = ng.novel_id 
-			JOIN genres g ON ng.genre_id = g.id `
-		where2 += " AND g.slug = $" + itoa(argIdx2)
-		args2 = append(args2, genre)
-		argIdx2++
+		selectDistinct = "DISTINCT "
 	}
-
-	query += where2 + " " + orderBy + " LIMIT $" + itoa(argIdx2) + " OFFSET $" + itoa(argIdx2+1)
-	args2 = append(args2, perPage, offset)
+	query := "SELECT " + selectDistinct + "n.* FROM novels n " + joinClause + where + " " + orderBy +
+		" LIMIT $" + strconv.Itoa(argIdx) + " OFFSET $" + strconv.Itoa(argIdx+1)
+	args = append(args, perPage, offset)
 
 	var novels []models.Novel
-	err = r.db.Select(&novels, query, args2...)
+	err = r.db.SelectContext(ctx, &novels, query, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -90,18 +83,18 @@ func (r *NovelRepository) GetAll(page, perPage int, sortBy, status, genre string
 	return novels, total, nil
 }
 
-func (r *NovelRepository) GetBySlug(slug string) (*models.Novel, error) {
+func (r *NovelRepository) GetBySlug(ctx context.Context, slug string) (*models.Novel, error) {
 	novel := &models.Novel{}
-	err := r.db.Get(novel, "SELECT * FROM novels WHERE slug = $1", slug)
+	err := r.db.GetContext(ctx, novel, "SELECT * FROM novels WHERE slug = $1", slug)
 	if err != nil {
 		return nil, err
 	}
 	return novel, nil
 }
 
-func (r *NovelRepository) GetGenresByNovelID(novelID string) ([]models.Genre, error) {
+func (r *NovelRepository) GetGenresByNovelID(ctx context.Context, novelID string) ([]models.Genre, error) {
 	var genres []models.Genre
-	err := r.db.Select(&genres, `
+	err := r.db.SelectContext(ctx, &genres, `
 		SELECT g.* FROM genres g
 		JOIN novel_genres ng ON g.id = ng.genre_id
 		WHERE ng.novel_id = $1
@@ -113,12 +106,20 @@ func (r *NovelRepository) GetGenresByNovelID(novelID string) ([]models.Genre, er
 }
 
 func (r *NovelRepository) IncrementViews(id string) {
-	r.db.Exec("UPDATE novels SET views = views + 1 WHERE id = $1", id)
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("panic in IncrementViews(novel): %v", r)
+		}
+	}()
+	_, err := r.db.Exec("UPDATE novels SET views = views + 1 WHERE id = $1", id)
+	if err != nil {
+		log.Printf("failed to increment novel views: %v", err)
+	}
 }
 
-func (r *NovelRepository) Search(query string, limit int) ([]models.Novel, error) {
+func (r *NovelRepository) Search(ctx context.Context, query string, limit int) ([]models.Novel, error) {
 	var novels []models.Novel
-	err := r.db.Select(&novels, `
+	err := r.db.SelectContext(ctx, &novels, `
 		SELECT * FROM novels 
 		WHERE title ILIKE $1 OR author ILIKE $1 OR description ILIKE $1
 		ORDER BY views DESC
@@ -129,12 +130,8 @@ func (r *NovelRepository) Search(query string, limit int) ([]models.Novel, error
 	return novels, nil
 }
 
-func (r *NovelRepository) GetAllGenres() ([]models.Genre, error) {
+func (r *NovelRepository) GetAllGenres(ctx context.Context) ([]models.Genre, error) {
 	var genres []models.Genre
-	err := r.db.Select(&genres, "SELECT * FROM genres ORDER BY name")
+	err := r.db.SelectContext(ctx, &genres, "SELECT * FROM genres ORDER BY name")
 	return genres, err
-}
-
-func itoa(i int) string {
-	return fmt.Sprintf("%d", i)
 }

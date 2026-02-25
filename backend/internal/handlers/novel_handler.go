@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"math"
 	"strconv"
 
@@ -47,8 +48,9 @@ func (h *NovelHandler) GetNovels(c *fiber.Ctx) error {
 		return c.JSON(cached)
 	}
 
-	novels, total, err := h.novelRepo.GetAll(page, perPage, sortBy, status, genre)
+	novels, total, err := h.novelRepo.GetAll(ctx, page, perPage, sortBy, status, genre)
 	if err != nil {
+		log.Printf("error fetching novels: %v", err)
 		return c.Status(500).JSON(models.ErrorResponse{Error: "Failed to fetch novels"})
 	}
 
@@ -63,7 +65,7 @@ func (h *NovelHandler) GetNovels(c *fiber.Ctx) error {
 	}
 
 	// Cache the result
-	h.cache.SetCatalog(ctx, page, perPage, sortBy, status, genre, resp)
+	_ = h.cache.SetCatalog(ctx, page, perPage, sortBy, status, genre, resp)
 
 	return c.JSON(resp)
 }
@@ -79,13 +81,13 @@ func (h *NovelHandler) GetNovelBySlug(c *fiber.Ctx) error {
 		return c.JSON(cached)
 	}
 
-	novel, err := h.novelRepo.GetBySlug(slug)
+	novel, err := h.novelRepo.GetBySlug(ctx, slug)
 	if err != nil {
 		return c.Status(404).JSON(models.ErrorResponse{Error: "Novel not found"})
 	}
 
-	genres, _ := h.novelRepo.GetGenresByNovelID(novel.ID)
-	chapters, _ := h.chapterRepo.GetByNovelID(novel.ID)
+	genres, _ := h.novelRepo.GetGenresByNovelID(ctx, novel.ID)
+	chapters, _ := h.chapterRepo.GetByNovelID(ctx, novel.ID)
 
 	// Increment views async
 	go h.novelRepo.IncrementViews(novel.ID)
@@ -99,7 +101,7 @@ func (h *NovelHandler) GetNovelBySlug(c *fiber.Ctx) error {
 	}
 
 	// Cache
-	h.cache.SetNovel(ctx, slug, resp)
+	_ = h.cache.SetNovel(ctx, slug, resp)
 
 	return c.JSON(resp)
 }
@@ -112,27 +114,28 @@ func (h *NovelHandler) GetChapter(c *fiber.Ctx) error {
 		return c.Status(400).JSON(models.ErrorResponse{Error: "Invalid chapter number"})
 	}
 
-	novel, err := h.novelRepo.GetBySlug(slug)
+	ctx := c.Context()
+
+	novel, err := h.novelRepo.GetBySlug(ctx, slug)
 	if err != nil {
 		return c.Status(404).JSON(models.ErrorResponse{Error: "Novel not found"})
 	}
 
 	// Try Redis cache first (hot path - should be <20ms)
-	ctx := c.Context()
 	chapter, err := h.cache.GetChapter(ctx, novel.ID, chapterNum)
 	if err != nil || chapter == nil {
 		// Cache miss - fetch from DB
-		chapter, err = h.chapterRepo.GetChapter(novel.ID, chapterNum)
+		chapter, err = h.chapterRepo.GetChapter(ctx, novel.ID, chapterNum)
 		if err != nil {
 			return c.Status(404).JSON(models.ErrorResponse{Error: "Chapter not found"})
 		}
 		// Store in cache
-		h.cache.SetChapter(ctx, novel.ID, chapterNum, chapter)
+		_ = h.cache.SetChapter(ctx, novel.ID, chapterNum, chapter)
 	}
 
 	// Get adjacent chapters for navigation
-	prev, next := h.chapterRepo.GetAdjacentChapters(novel.ID, chapterNum)
-	totalChaps, _ := h.chapterRepo.GetTotalChapters(novel.ID)
+	prev, next := h.chapterRepo.GetAdjacentChapters(ctx, novel.ID, chapterNum)
+	totalChaps, _ := h.chapterRepo.GetTotalChapters(ctx, novel.ID)
 
 	// Increment views async
 	go h.chapterRepo.IncrementViews(chapter.ID)
@@ -156,8 +159,9 @@ func (h *NovelHandler) Search(c *fiber.Ctx) error {
 		return c.Status(400).JSON(models.ErrorResponse{Error: "Query too short (min 2 chars)"})
 	}
 
-	novels, err := h.novelRepo.Search(query, 20)
+	novels, err := h.novelRepo.Search(c.Context(), query, 20)
 	if err != nil {
+		log.Printf("search error for query %q: %v", query, err)
 		return c.Status(500).JSON(models.ErrorResponse{Error: "Search failed"})
 	}
 
@@ -166,7 +170,7 @@ func (h *NovelHandler) Search(c *fiber.Ctx) error {
 
 // GET /api/genres - List all genres
 func (h *NovelHandler) GetGenres(c *fiber.Ctx) error {
-	genres, err := h.novelRepo.GetAllGenres()
+	genres, err := h.novelRepo.GetAllGenres(c.Context())
 	if err != nil {
 		return c.Status(500).JSON(models.ErrorResponse{Error: "Failed to fetch genres"})
 	}

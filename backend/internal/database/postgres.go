@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"aetha-backend/internal/config"
 
@@ -23,6 +24,7 @@ func Connect(cfg config.DBConfig) *sqlx.DB {
 
 	db.SetMaxOpenConns(50)
 	db.SetMaxIdleConns(25)
+	db.SetConnMaxLifetime(5 * time.Minute)
 
 	if err := db.Ping(); err != nil {
 		log.Fatalf("Failed to ping PostgreSQL: %v", err)

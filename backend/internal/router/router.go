@@ -29,8 +29,8 @@ func Setup(app *fiber.App, nh *handlers.NovelHandler, allowedOrigins string) {
 	}))
 	app.Use(limiter.New(limiter.Config{
 		Max:               100,
-		Expiration:         1 * time.Minute,
-		LimiterMiddleware:  limiter.SlidingWindow{},
+		Expiration:        1 * time.Minute,
+		LimiterMiddleware: limiter.SlidingWindow{},
 		KeyGenerator: func(c *fiber.Ctx) string {
 			return c.IP()
 		},

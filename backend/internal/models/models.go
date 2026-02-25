@@ -74,11 +74,11 @@ type Bookmark struct {
 // --- API Response structs ---
 
 type PaginatedResponse struct {
-	Data       interface{} `json:"data"`
-	Page       int         `json:"page"`
-	PerPage    int         `json:"per_page"`
-	Total      int         `json:"total"`
-	TotalPages int         `json:"total_pages"`
+	Data       any `json:"data"`
+	Page       int `json:"page"`
+	PerPage    int `json:"per_page"`
+	Total      int `json:"total"`
+	TotalPages int `json:"total_pages"`
 }
 
 type NovelDetailResponse struct {

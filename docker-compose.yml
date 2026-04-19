@@ -52,7 +52,7 @@ services:
       REDIS_PASSWORD: ""
       REDIS_DB: 0
       PORT: 8080
-      ALLOWED_ORIGINS: "http://localhost:3000"
+      ALLOWED_ORIGINS: "http://localhost:3001,http://localhost:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,13 +65,15 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://backend:8080
     container_name: aetha-frontend
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://backend:8080
       NEXT_PUBLIC_SITE_NAME: Aetha
-      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_PUBLIC_SITE_URL: http://localhost:3001
     depends_on:
       - backend
     restart: unless-stopped

@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS reports;
+DROP TABLE IF EXISTS reading_progress;
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS review_votes;
+DROP TABLE IF EXISTS reviews;
+DROP TABLE IF EXISTS comments;
+DROP TABLE IF EXISTS follows;
+DROP TABLE IF EXISTS novel_warnings;
+DROP TABLE IF EXISTS content_warnings;
+ALTER TABLE chapters DROP COLUMN IF EXISTS content_md;
+ALTER TABLE chapters DROP COLUMN IF EXISTS published_at;
+ALTER TABLE chapters DROP COLUMN IF EXISTS status;
+ALTER TABLE novels DROP COLUMN IF EXISTS follower_count;
+ALTER TABLE novels DROP COLUMN IF EXISTS author_id;
+DROP TABLE IF EXISTS author_profiles;
+DROP TABLE IF EXISTS refresh_tokens;
+DROP TABLE IF EXISTS oauth_accounts;
+DROP TABLE IF EXISTS users;

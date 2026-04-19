@@ -35,9 +35,14 @@ func main() {
 	rdb := database.ConnectRedis(cfg.Redis)
 	defer rdb.Close()
 
-	// Init layers
+	// Init repositories
 	novelRepo := repository.NewNovelRepository(db)
 	chapterRepo := repository.NewChapterRepository(db)
+	userRepo := repository.NewUserRepository(db)
+	authorRepo := repository.NewAuthorRepository(db)
+	communityRepo := repository.NewCommunityRepository(db)
+
+	// Init cache
 	cacheService := cache.NewCacheService(rdb, cfg.Cache.ChapterTTL, cfg.Cache.NovelTTL, cfg.Cache.CatalogTTL)
 
 	// Prewarm cache with recent chapters
@@ -49,16 +54,21 @@ func main() {
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
-		AppName:   "Aetha Backend v1.0",
+		AppName:   "Aetha Backend v2.0",
 		BodyLimit: 10 * 1024 * 1024, // 10MB
 		Prefork:   false,
 	})
 
-	// Setup handlers
-	novelHandler := handlers.NewNovelHandler(novelRepo, chapterRepo, cacheService)
+	// Setup all handlers
+	h := &router.Handlers{
+		Novel:     handlers.NewNovelHandler(novelRepo, chapterRepo, cacheService),
+		Auth:      handlers.NewAuthHandler(userRepo, &cfg.Auth),
+		Author:    handlers.NewAuthorHandler(authorRepo, novelRepo, userRepo, cacheService),
+		Community: handlers.NewCommunityHandler(communityRepo, novelRepo),
+	}
 
 	// Setup routes
-	router.Setup(app, novelHandler, cfg.Server.AllowedOrigins)
+	router.Setup(app, h, cfg.Server.AllowedOrigins, cfg.Auth.JWTSecret)
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
@@ -66,7 +76,7 @@ func main() {
 
 	go func() {
 		<-quit
-		log.Println("🛑 Shutting down gracefully...")
+		log.Println("Shutting down gracefully...")
 		if err := app.Shutdown(); err != nil {
 			log.Printf("Server shutdown error: %v", err)
 		}
@@ -74,7 +84,7 @@ func main() {
 
 	// Start server
 	addr := ":" + cfg.Server.Port
-	log.Printf("🚀 Aetha Backend starting on %s", addr)
+	log.Printf("Aetha Backend v2 starting on %s", addr)
 	if err := app.Listen(addr); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}

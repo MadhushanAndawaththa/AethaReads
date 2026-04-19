@@ -2,21 +2,22 @@ import type { Metadata, Viewport } from 'next';
 import { SITE_NAME } from '@/lib/utils';
 import './globals.css';
 import { ThemeProvider } from '@/components/ThemeProvider';
+import { AuthProvider } from '@/components/AuthProvider';
 import { BottomNav } from '@/components/BottomNav';
 import { Header } from '@/components/Header';
 
 export const metadata: Metadata = {
   title: {
-    default: `${SITE_NAME} - Read Web Novels Online`,
+    default: `${SITE_NAME} - Read & Write Web Novels`,
     template: `%s | ${SITE_NAME}`,
   },
-  description: 'Read the latest web novels, light novels, and web fiction. Thousands of chapters updated daily with a clean, fast reading experience.',
-  keywords: ['web novel', 'light novel', 'read online', 'web fiction', 'novel reader'],
+  description: 'Read and write web novels, light novels, and web fiction. A community for readers and authors with a clean, fast experience.',
+  keywords: ['web novel', 'light novel', 'read online', 'web fiction', 'novel reader', 'write novels'],
   openGraph: {
     type: 'website',
     siteName: SITE_NAME,
-    title: `${SITE_NAME} - Read Web Novels Online`,
-    description: 'Read the latest web novels with a clean, fast reading experience.',
+    title: `${SITE_NAME} - Read & Write Web Novels`,
+    description: 'Read and write web novels with a clean, fast community experience.',
   },
   robots: {
     index: true,
@@ -43,11 +44,13 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className="font-sans min-h-screen flex flex-col">
         <ThemeProvider>
-          <Header />
-          <main className="flex-1 pb-16 md:pb-0">
-            {children}
-          </main>
-          <BottomNav />
+          <AuthProvider>
+            <Header />
+            <main className="flex-1 pb-16 md:pb-0">
+              {children}
+            </main>
+            <BottomNav />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

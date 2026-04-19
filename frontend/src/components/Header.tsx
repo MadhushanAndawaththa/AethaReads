@@ -2,17 +2,18 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { SITE_NAME } from '@/lib/utils';
 import { useTheme } from './ThemeProvider';
+import { useAuth } from './AuthProvider';
 import { SearchModal } from './SearchModal';
 
 export function Header() {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
+  const { user, loading: authLoading, logout } = useAuth();
   const [showSearch, setShowSearch] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   // Hide header on chapter reading pages
   const isReading = /^\/novel\/[^/]+\/\d+/.test(pathname);
@@ -45,6 +46,14 @@ export function Header() {
             >
               Browse
             </Link>
+            {user && (
+              <Link
+                href="/dashboard"
+                className={`hover:text-brand-500 transition-colors ${pathname.startsWith('/dashboard') ? 'text-brand-500 font-semibold' : 'text-[var(--text-secondary)]'}`}
+              >
+                Dashboard
+              </Link>
+            )}
           </nav>
 
           {/* Actions */}
@@ -66,6 +75,53 @@ export function Header() {
             >
               {themeIcon}
             </button>
+
+            {/* Auth */}
+            {!authLoading && (
+              user ? (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-[var(--bg-secondary)] transition-colors"
+                  >
+                    {user.avatar_url ? (
+                      <img src={user.avatar_url} alt="" className="w-7 h-7 rounded-full" />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold text-white">
+                        {user.display_name[0]?.toUpperCase()}
+                      </div>
+                    )}
+                  </button>
+                  {showUserMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                      <div className="absolute right-0 top-full mt-2 w-48 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-xl z-50 py-1">
+                        <div className="px-4 py-2 border-b border-[var(--border-color)]">
+                          <p className="font-medium text-sm truncate">{user.display_name}</p>
+                          <p className="text-xs text-gray-400 capitalize">{user.role}</p>
+                        </div>
+                        <Link href="/dashboard" className="block px-4 py-2 text-sm hover:bg-white/5" onClick={() => setShowUserMenu(false)}>
+                          Dashboard
+                        </Link>
+                        <button
+                          onClick={async () => { setShowUserMenu(false); await logout(); }}
+                          className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5"
+                        >
+                          Sign Out
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  href="/auth/login"
+                  className="px-4 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 rounded-lg font-medium transition"
+                >
+                  Sign In
+                </Link>
+              )
+            )}
           </div>
         </div>
       </header>

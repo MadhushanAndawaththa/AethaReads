@@ -154,9 +154,23 @@ export interface ReadingProgress {
   id: string;
   user_id: string;
   novel_id: string;
+  novel_slug: string;
+  novel_title: string;
   chapter_number: number;
   scroll_position: number;
   updated_at: string;
+}
+
+export interface UserProfile {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string;
+  role: string;
+  bio: string;
+  created_at: string;
+  novel_count?: number;
+  follower_count?: number;
 }
 
 export type ReadingTheme = 'light' | 'dark' | 'sepia';

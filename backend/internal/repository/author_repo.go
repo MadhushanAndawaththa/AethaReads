@@ -285,6 +285,22 @@ func (r *AuthorRepository) GetChaptersByNovel(ctx context.Context, novelID, auth
 	return chapters, err
 }
 
+func (r *AuthorRepository) GetChapterByID(ctx context.Context, chapterID, authorID string) (*models.Chapter, error) {
+	var ownerID string
+	err := r.db.GetContext(ctx, &ownerID, `
+		SELECT n.author_id FROM chapters c JOIN novels n ON c.novel_id = n.id WHERE c.id = $1`, chapterID)
+	if err != nil || ownerID != authorID {
+		return nil, fmt.Errorf("chapter not found or not owned by author")
+	}
+
+	var chapter models.Chapter
+	err = r.db.GetContext(ctx, &chapter, "SELECT * FROM chapters WHERE id = $1", chapterID)
+	if err != nil {
+		return nil, err
+	}
+	return &chapter, nil
+}
+
 func (r *AuthorRepository) DeleteChapter(ctx context.Context, chapterID, authorID string) error {
 	var ownerID string
 	err := r.db.GetContext(ctx, &ownerID, `

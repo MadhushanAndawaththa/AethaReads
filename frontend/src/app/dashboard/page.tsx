@@ -48,7 +48,7 @@ export default function DashboardPage() {
   if (authLoading || loading) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
       </div>
     );
   }
@@ -59,7 +59,7 @@ export default function DashboardPage() {
         <h1 className="text-3xl font-bold">Author Dashboard</h1>
         <Link
           href="/dashboard/novel/new"
-          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg font-medium transition"
+          className="btn-primary text-sm"
         >
           + New Novel
         </Link>
@@ -78,11 +78,11 @@ export default function DashboardPage() {
       {/* Novels List */}
       <h2 className="text-xl font-semibold mb-4">Your Novels</h2>
       {novels.length === 0 ? (
-        <div className="text-center py-12 bg-white/5 rounded-xl">
-          <p className="text-gray-400 mb-4">You haven&apos;t created any novels yet.</p>
+        <div className="card p-12 text-center">
+          <p className="text-[var(--text-muted)] mb-4">You haven&apos;t created any novels yet.</p>
           <Link
             href="/dashboard/novel/new"
-            className="inline-block px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg font-medium transition"
+            className="btn-primary text-sm inline-flex"
           >
             Create Your First Novel
           </Link>
@@ -90,30 +90,30 @@ export default function DashboardPage() {
       ) : (
         <div className="space-y-4">
           {novels.map((novel) => (
-            <div key={novel.id} className="flex items-center gap-4 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition">
+            <div key={novel.id} className="card flex items-center gap-4 p-4 hover:border-brand-500/20 transition-all">
               {novel.cover_url ? (
                 <img src={novel.cover_url} alt={novel.title} className="w-16 h-20 object-cover rounded-lg" />
               ) : (
-                <div className="w-16 h-20 bg-purple-600/20 rounded-lg flex items-center justify-center text-purple-400 text-xs">
+                <div className="w-16 h-20 bg-brand-500/10 rounded-lg flex items-center justify-center text-brand-400 text-xs">
                   No Cover
                 </div>
               )}
               <div className="flex-1 min-w-0">
                 <h3 className="font-semibold truncate">{novel.title}</h3>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-[var(--text-muted)]">
                   {novel.chapter_count} chapters · {novel.views.toLocaleString()} views · {novel.status}
                 </p>
               </div>
               <div className="flex gap-2">
                 <Link
                   href={`/dashboard/novel/${novel.id}`}
-                  className="px-3 py-1.5 text-sm bg-white/10 hover:bg-white/20 rounded-lg transition"
+                  className="btn-secondary text-sm"
                 >
                   Manage
                 </Link>
                 <Link
                   href={`/novel/${novel.slug}`}
-                  className="px-3 py-1.5 text-sm text-purple-400 hover:text-purple-300 transition"
+                  className="px-3 py-1.5 text-sm text-brand-400 hover:text-brand-300 transition"
                 >
                   View
                 </Link>
@@ -128,9 +128,9 @@ export default function DashboardPage() {
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="p-4 bg-white/5 rounded-xl">
+    <div className="card p-4">
       <p className="text-2xl font-bold">{value.toLocaleString()}</p>
-      <p className="text-sm text-gray-400">{label}</p>
+      <p className="text-sm text-[var(--text-muted)]">{label}</p>
     </div>
   );
 }

@@ -48,7 +48,7 @@ export default function NewChapterPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <Link href={`/dashboard/novel/${novelId}`} className="text-sm text-gray-400 hover:text-gray-300 mb-4 inline-block">
+      <Link href={`/dashboard/novel/${novelId}`} className="text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] mb-4 inline-block">
         ← Back to Chapters
       </Link>
       <h1 className="text-2xl font-bold mb-6">New Chapter</h1>
@@ -61,28 +61,28 @@ export default function NewChapterPage() {
         )}
 
         <div>
-          <label className="block text-sm font-medium mb-1 text-gray-300">Chapter Title *</label>
+          <label className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Chapter Title *</label>
           <input
             type="text"
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition"
+            className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition"
             placeholder="Chapter title"
           />
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="block text-sm font-medium text-gray-300">Content (Markdown) *</label>
-            <span className="text-xs text-gray-500">{wordCount.toLocaleString()} words</span>
+            <label className="block text-sm font-medium text-[var(--text-secondary)]">Content (Markdown) *</label>
+            <span className="text-xs text-[var(--text-muted)]">{wordCount.toLocaleString()} words</span>
           </div>
           <textarea
             rows={20}
             required
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition resize-y font-mono text-sm"
+            className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition resize-y font-mono text-sm"
             placeholder="Write your chapter here..."
           />
         </div>
@@ -94,7 +94,7 @@ export default function NewChapterPage() {
               name="status"
               checked={status === 'draft'}
               onChange={() => setStatus('draft')}
-              className="accent-purple-500"
+              className="accent-brand-500"
             />
             <span className="text-sm">Save as Draft</span>
           </label>
@@ -104,7 +104,7 @@ export default function NewChapterPage() {
               name="status"
               checked={status === 'published'}
               onChange={() => setStatus('published')}
-              className="accent-purple-500"
+              className="accent-brand-500"
             />
             <span className="text-sm">Publish Immediately</span>
           </label>
@@ -113,7 +113,7 @@ export default function NewChapterPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-3 px-4 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-medium transition"
+          className="w-full btn-primary disabled:opacity-50"
         >
           {submitting ? 'Saving...' : status === 'published' ? 'Publish Chapter' : 'Save Draft'}
         </button>

@@ -138,6 +138,9 @@ export const api = {
       method: 'PUT', body: JSON.stringify(data),
     }),
 
+  getChapterForEdit: (chapterId: string) =>
+    authFetcher<Chapter>(`/api/author/chapters/${chapterId}`),
+
   deleteChapter: (chapterId: string) =>
     authFetcher<{ message: string }>(`/api/author/chapters/${chapterId}`, { method: 'DELETE' }),
 
@@ -197,6 +200,10 @@ export const api = {
 
   markNotificationsRead: () =>
     authFetcher<{ message: string }>('/api/user/notifications/read', { method: 'POST' }),
+
+  // ── User Profile ────────────────
+  getUserProfile: (username: string) =>
+    clientFetcher<{ user: import('./types').UserProfile; novels: Novel[] }>(`/api/users/${username}`),
 
   // ── Reading Progress ────────────────
   updateProgress: (slug: string, chapterNumber: number, scrollPosition: number) =>

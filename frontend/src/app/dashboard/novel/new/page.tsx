@@ -66,45 +66,45 @@ export default function NewNovelPage() {
         )}
 
         <div>
-          <label className="block text-sm font-medium mb-1 text-gray-300">Title *</label>
+          <label className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Title *</label>
           <input
             type="text"
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition"
+            className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition"
             placeholder="Your novel's title"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1 text-gray-300">Description</label>
+          <label className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Description</label>
           <textarea
             rows={5}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition resize-y"
+            className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition resize-y"
             placeholder="Synopsis of your novel..."
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1 text-gray-300">Cover Image URL</label>
+          <label className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Cover Image URL</label>
           <input
             type="url"
             value={coverUrl}
             onChange={(e) => setCoverUrl(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition"
+            className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition"
             placeholder="https://..."
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1 text-gray-300">Type</label>
+          <label className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Type</label>
           <select
             value={novelType}
             onChange={(e) => setNovelType(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 focus:border-purple-500 outline-none transition"
+            className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:border-brand-500 outline-none transition"
           >
             <option value="Web Novel">Web Novel</option>
             <option value="Light Novel">Light Novel</option>
@@ -114,17 +114,17 @@ export default function NewNovelPage() {
 
         {genres.length > 0 && (
           <div>
-            <label className="block text-sm font-medium mb-2 text-gray-300">Genres</label>
+          <label className="block text-sm font-medium mb-2 text-[var(--text-secondary)]">Genres</label>
             <div className="flex flex-wrap gap-2">
               {genres.map((genre) => (
                 <button
                   key={genre.id}
                   type="button"
                   onClick={() => toggleGenre(genre.id)}
-                  className={`px-3 py-1.5 rounded-full text-sm transition ${
+                  className={`px-3 py-1.5 rounded-full text-sm border transition ${
                     selectedGenres.includes(genre.id)
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                      ? 'bg-brand-500 border-brand-500 text-white'
+                      : 'bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-muted)] hover:border-brand-500/50'
                   }`}
                 >
                   {genre.name}
@@ -137,7 +137,7 @@ export default function NewNovelPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-3 px-4 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-medium transition"
+          className="w-full btn-primary disabled:opacity-50"
         >
           {submitting ? 'Creating...' : 'Create Novel'}
         </button>

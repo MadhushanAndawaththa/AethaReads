@@ -122,6 +122,19 @@ func (h *AuthorHandler) CreateChapter(c *fiber.Ctx) error {
 	return c.Status(201).JSON(chapter)
 }
 
+// GET /api/author/chapters/:id — fetch chapter for editing
+func (h *AuthorHandler) GetChapterForEdit(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	chapterID := c.Params("id")
+
+	chapter, err := h.authorRepo.GetChapterByID(c.Context(), chapterID, userID)
+	if err != nil {
+		return c.Status(404).JSON(models.ErrorResponse{Error: err.Error()})
+	}
+
+	return c.JSON(chapter)
+}
+
 // PUT /api/author/chapters/:id — update chapter
 func (h *AuthorHandler) UpdateChapter(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
@@ -189,4 +202,42 @@ func (h *AuthorHandler) BecomeAuthor(c *fiber.Ctx) error {
 	_, _ = h.userRepo.CreateAuthorProfile(c.Context(), userID)
 
 	return c.JSON(fiber.Map{"message": "Upgraded to author", "role": "author"})
+}
+
+// GET /api/users/:username — public user profile
+func (h *AuthorHandler) GetUserProfile(c *fiber.Ctx) error {
+	username := c.Params("username")
+	if username == "" {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Username is required"})
+	}
+
+	user, err := h.userRepo.GetByUsername(c.Context(), username)
+	if err != nil {
+		return c.Status(404).JSON(models.ErrorResponse{Error: "User not found"})
+	}
+
+	// Public view — omit sensitive fields
+	profile := fiber.Map{
+		"id":           user.ID,
+		"username":     user.Username,
+		"display_name": user.DisplayName,
+		"avatar_url":   user.AvatarURL,
+		"role":         user.Role,
+		"bio":          user.Bio,
+		"created_at":   user.CreatedAt,
+	}
+
+	// If author/admin, include their novels
+	var novels []models.Novel
+	if user.Role == "author" || user.Role == "admin" {
+		novels, _ = h.authorRepo.GetAuthorNovels(c.Context(), user.ID)
+	}
+	if novels == nil {
+		novels = []models.Novel{}
+	}
+
+	return c.JSON(fiber.Map{
+		"user":   profile,
+		"novels": novels,
+	})
 }

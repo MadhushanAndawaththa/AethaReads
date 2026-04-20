@@ -190,6 +190,8 @@ type ReadingProgress struct {
 	ID             string    `json:"id" db:"id"`
 	UserID         string    `json:"user_id" db:"user_id"`
 	NovelID        string    `json:"novel_id" db:"novel_id"`
+	NovelSlug      string    `json:"novel_slug" db:"novel_slug"`
+	NovelTitle     string    `json:"novel_title" db:"novel_title"`
 	ChapterNumber  int       `json:"chapter_number" db:"chapter_number"`
 	ScrollPosition float64   `json:"scroll_position" db:"scroll_position"`
 	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`

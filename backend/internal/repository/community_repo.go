@@ -268,13 +268,22 @@ func (r *CommunityRepository) UpdateReadingProgress(ctx context.Context, userID,
 func (r *CommunityRepository) GetReadingProgress(ctx context.Context, userID, novelID string) (*models.ReadingProgress, error) {
 	progress := &models.ReadingProgress{}
 	err := r.db.GetContext(ctx, progress, `
-		SELECT * FROM reading_progress WHERE user_id = $1 AND novel_id = $2`, userID, novelID)
+		SELECT rp.id, rp.user_id, rp.novel_id, n.slug AS novel_slug, n.title AS novel_title,
+		       rp.chapter_number, rp.scroll_position, rp.updated_at
+		FROM reading_progress rp
+		JOIN novels n ON rp.novel_id = n.id
+		WHERE rp.user_id = $1 AND rp.novel_id = $2`, userID, novelID)
 	return progress, err
 }
 
 func (r *CommunityRepository) GetAllReadingProgress(ctx context.Context, userID string) ([]models.ReadingProgress, error) {
 	var progress []models.ReadingProgress
 	err := r.db.SelectContext(ctx, &progress, `
-		SELECT * FROM reading_progress WHERE user_id = $1 ORDER BY updated_at DESC`, userID)
+		SELECT rp.id, rp.user_id, rp.novel_id, n.slug AS novel_slug, n.title AS novel_title,
+		       rp.chapter_number, rp.scroll_position, rp.updated_at
+		FROM reading_progress rp
+		JOIN novels n ON rp.novel_id = n.id
+		WHERE rp.user_id = $1
+		ORDER BY rp.updated_at DESC`, userID)
 	return progress, err
 }

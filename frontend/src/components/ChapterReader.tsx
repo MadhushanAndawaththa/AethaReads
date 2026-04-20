@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import type { ChapterReadResponse, ReadingSettings, ReadingTheme } from '@/lib/types';
 import { getReadingSettingsFromStorage, saveReadingSettings, DEFAULT_READING_SETTINGS } from '@/lib/utils';
+import { CommentSection } from './CommentSection';
+import { useAuth } from './AuthProvider';
+import { api } from '@/lib/api';
 
 interface ChapterReaderProps {
   data: ChapterReadResponse;
@@ -11,11 +14,14 @@ interface ChapterReaderProps {
 
 export function ChapterReader({ data }: ChapterReaderProps) {
   const { chapter, novel_title, novel_slug, prev_chapter, next_chapter, total_chapters } = data;
+  const { user } = useAuth();
 
   const [settings, setSettings] = useState<ReadingSettings>(DEFAULT_READING_SETTINGS);
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -76,6 +82,32 @@ export function ChapterReader({ data }: ChapterReaderProps) {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [prev_chapter, next_chapter, novel_slug]);
+
+  // Reading progress sync — throttled every 30 seconds
+  useEffect(() => {
+    if (!user || !mounted) return;
+
+    const syncProgress = () => {
+      const scrollPosition = Math.round(
+        (window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100
+      );
+      api.updateProgress(novel_slug, chapter.chapter_number, scrollPosition).catch(() => {});
+    };
+
+    const handleScroll = () => {
+      if (progressTimerRef.current) clearTimeout(progressTimerRef.current);
+      progressTimerRef.current = setTimeout(syncProgress, 30_000);
+    };
+
+    // Sync immediately on mount (marks chapter as started)
+    syncProgress();
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (progressTimerRef.current) clearTimeout(progressTimerRef.current);
+    };
+  }, [user, novel_slug, chapter.chapter_number, mounted]);
 
   const fontClass = settings.fontFamily === 'serif' ? 'font-reading' : 'font-sans';
 
@@ -286,6 +318,22 @@ export function ChapterReader({ data }: ChapterReaderProps) {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Comments toggle */}
+        <div className="mt-8 border-t border-[var(--border-color)] pt-4">
+          <button
+            onClick={() => setShowComments((v) => !v)}
+            className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+            {showComments ? 'Hide Comments' : 'Show Comments'}
+          </button>
+          {showComments && (
+            <CommentSection chapterId={chapter.id} novelSlug={novel_slug} />
+          )}
         </div>
       </article>
 

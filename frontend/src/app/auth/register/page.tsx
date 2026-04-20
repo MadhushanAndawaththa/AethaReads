@@ -41,7 +41,10 @@ export default function RegisterPage() {
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-8">Create Account</h1>
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold">Create account</h1>
+          <p className="text-[var(--text-muted)] text-sm mt-2">Join the community</p>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
@@ -51,7 +54,7 @@ export default function RegisterPage() {
           )}
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium mb-1 text-gray-300">
+            <label htmlFor="email" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">
               Email
             </label>
             <input
@@ -60,13 +63,13 @@ export default function RegisterPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition"
+              className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
               placeholder="you@example.com"
             />
           </div>
 
           <div>
-            <label htmlFor="username" className="block text-sm font-medium mb-1 text-gray-300">
+            <label htmlFor="username" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">
               Username
             </label>
             <input
@@ -77,13 +80,13 @@ export default function RegisterPage() {
               maxLength={30}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition"
+              className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
               placeholder="your_username"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1 text-gray-300">
+            <label htmlFor="password" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">
               Password
             </label>
             <input
@@ -93,7 +96,7 @@ export default function RegisterPage() {
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition"
+              className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
               placeholder="Min 8 characters"
             />
           </div>
@@ -101,15 +104,15 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 px-4 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-lg font-medium transition"
+            className="w-full py-3 px-4 btn-primary disabled:opacity-50 text-sm font-semibold"
           >
-            {loading ? 'Creating account...' : 'Create Account'}
+            {loading ? 'Creating account…' : 'Create Account'}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-gray-400">
+        <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
           Already have an account?{' '}
-          <Link href="/auth/login" className="text-purple-400 hover:text-purple-300">
+          <Link href="/auth/login" className="text-brand-500 hover:text-brand-400 font-medium">
             Sign in
           </Link>
         </p>

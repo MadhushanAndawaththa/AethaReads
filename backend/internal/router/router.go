@@ -80,6 +80,7 @@ func Setup(app *fiber.App, h *Handlers, allowedOrigins, jwtSecret string) {
 		author.Delete("/novels/:id", h.Author.DeleteNovel)
 		author.Get("/novels/:id/chapters", h.Author.GetMyChapters)
 		author.Post("/novels/:id/chapters", h.Author.CreateChapter)
+		author.Get("/chapters/:id", h.Author.GetChapterForEdit)
 		author.Put("/chapters/:id", h.Author.UpdateChapter)
 		author.Delete("/chapters/:id", h.Author.DeleteChapter)
 		author.Get("/stats", h.Author.GetStats)
@@ -113,5 +114,8 @@ func Setup(app *fiber.App, h *Handlers, allowedOrigins, jwtSecret string) {
 		user.Get("/notifications", h.Community.GetNotifications)
 		user.Post("/notifications/read", h.Community.MarkNotificationsRead)
 		user.Get("/progress", h.Community.GetAllProgress)
+
+		// ── Public user profiles ────────────────
+		api.Get("/users/:username", h.Author.GetUserProfile)
 	}
 }

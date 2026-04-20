@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import { NovelCard } from '@/components/NovelCard';
+import { ContinueReadingSection } from '@/components/ContinueReadingSection';
 import Link from 'next/link';
 import type { Novel } from '@/lib/types';
 
@@ -38,6 +39,9 @@ export default async function HomePage() {
           </Link>
         </div>
       </section>
+
+      {/* Continue Reading (client-side, only for logged-in users) */}
+      <ContinueReadingSection />
 
       {/* Popular Novels */}
       <section>

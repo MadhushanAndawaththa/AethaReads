@@ -51,11 +51,11 @@ export function SearchModal({ onClose }: SearchModalProps) {
   }, [query]);
 
   return (
-    <div className="fixed inset-0 z-[100] fade-in" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] fade-in" onClick={onClose} role="dialog" aria-modal="true" aria-label="Search novels">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
       <div
-        className="relative max-w-xl mx-auto mt-20 mx-4"
+        className="relative max-w-xl mx-auto mt-20 px-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="card p-4 shadow-2xl">

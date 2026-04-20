@@ -16,15 +16,14 @@ export default function DashboardPage() {
     total_views: number; total_follows: number;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showAuthorPrompt, setShowAuthorPrompt] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace('/auth/login'); return; }
     if (user.role === 'reader') {
-      // Auto-promote to author
-      api.becomeAuthor().then(() => {
-        loadData();
-      });
+      setShowAuthorPrompt(true);
+      setLoading(false);
     } else {
       loadData();
     }
@@ -38,10 +37,21 @@ export default function DashboardPage() {
       ]);
       setNovels(novelsRes.data || []);
       setStats(statsRes);
-    } catch (err) {
-      console.error('Failed to load dashboard:', err);
+    } catch {
+      // Failed to load dashboard data
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleBecomeAuthor = async () => {
+    try {
+      await api.becomeAuthor();
+      setShowAuthorPrompt(false);
+      setLoading(true);
+      loadData();
+    } catch {
+      // Failed to become author
     }
   };
 
@@ -49,6 +59,28 @@ export default function DashboardPage() {
     return (
       <div className="min-h-[80vh] flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500" />
+      </div>
+    );
+  }
+
+  if (showAuthorPrompt) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center px-4">
+        <div className="card max-w-md w-full p-8 text-center">
+          <div className="text-4xl mb-4">✍️</div>
+          <h2 className="text-xl font-bold mb-2">Become an Author</h2>
+          <p className="text-[var(--text-secondary)] text-sm mb-6">
+            Upgrade your account to start writing and publishing your own novels on Aetha. This will unlock the author dashboard where you can manage your works.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <button onClick={() => router.push('/')} className="btn-secondary text-sm">
+              Not Now
+            </button>
+            <button onClick={handleBecomeAuthor} className="btn-primary text-sm">
+              Yes, Become an Author
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

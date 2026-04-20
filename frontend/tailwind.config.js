@@ -28,9 +28,10 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: ['Inter', 'Noto Sans Sinhala', 'system-ui', '-apple-system', 'sans-serif'],
         serif: ['Georgia', 'Cambria', 'serif'],
         reading: ['Merriweather', 'Georgia', 'serif'],
+        sinhala: ['Noto Sans Sinhala', 'Inter', 'system-ui', 'sans-serif'],
       },
       typography: {
         DEFAULT: {

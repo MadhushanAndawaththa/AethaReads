@@ -45,7 +45,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [theme, mounted]);
 
   if (!mounted) {
-    return <div className="dark">{children}</div>;
+    return <>{children}</>;
   }
 
   return (

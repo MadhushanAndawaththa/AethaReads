@@ -31,7 +31,7 @@ export default async function HomePage() {
           Read Web Novels <span className="text-brand-500">Anytime</span>
         </h1>
         <p className="text-[var(--text-secondary)] max-w-xl mx-auto text-sm md:text-base">
-          Discover thousands of web novels with a clean, distraction-free reading experience optimized for mobile.
+          Discover thousands of web novels in English and Sinhala with a clean, distraction-free reading experience optimized for mobile.
         </p>
         <div className="mt-6 flex items-center justify-center gap-3">
           <Link href="/browse" className="btn-primary text-sm">
@@ -55,7 +55,7 @@ export default async function HomePage() {
           </Link>
         </div>
         {novels.length > 0 ? (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
             {novels.map((novel) => (
               <NovelCard key={novel.id} novel={novel} />
             ))}
@@ -80,7 +80,7 @@ export default async function HomePage() {
           </Link>
         </div>
         {recentNovels.length > 0 ? (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
             {recentNovels.map((novel) => (
               <NovelCard key={novel.id} novel={novel} />
             ))}

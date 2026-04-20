@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@300;400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@300;400;700&family=Noto+Sans+Sinhala:wght@400;500;600;700&display=swap');
 
 @layer base {
   :root {
@@ -14,6 +14,7 @@
     --text-muted: #9ca3af;
     --border-color: #e5e7eb;
     --accent: #4c6ef5;
+    --bg-hover: #f0f1f3;
   }
 
   .dark {
@@ -25,6 +26,7 @@
     --text-muted: #6b6b80;
     --border-color: #2a2a3a;
     --accent: #5c7cfa;
+    --bg-hover: #22222f;
   }
 
   .sepia {
@@ -36,6 +38,7 @@
     --text-muted: #9a8672;
     --border-color: #d4c9b0;
     --accent: #8b6914;
+    --bg-hover: #e8dfc8;
   }
 
   body {
@@ -139,10 +142,29 @@
   to { opacity: 1; }
 }
 
-/* Mobile touch optimization */
+/* Mobile touch optimization — scoped to interactive controls only */
 @media (pointer: coarse) {
-  button, a {
+  button:not(.touch-compact),
+  [role="button"]:not(.touch-compact) {
     min-height: 44px;
-    min-width: 44px;
+  }
+}
+
+/* Safe area support for bottom nav on notched devices */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Sinhala text support */
+.sinhala-text {
+  font-family: 'Noto Sans Sinhala', 'Inter', system-ui, sans-serif;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

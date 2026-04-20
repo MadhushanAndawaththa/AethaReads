@@ -21,27 +21,27 @@ export function NovelCard({ novel, showRating = true }: NovelCardProps) {
             src={novel.cover_url}
             alt={novel.title}
             fill
-            sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, (max-width: 1024px) 20vw, 16vw"
+            sizes="(max-width: 480px) 50vw, (max-width: 640px) 33vw, (max-width: 768px) 25vw, (max-width: 1024px) 20vw, 16vw"
             className="object-cover group-hover:scale-105 transition-transform duration-300"
             unoptimized
           />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-brand-900/30 to-brand-700/20">
-            <span className="text-3xl">📖</span>
-            <span className="text-[9px] text-[var(--text-muted)] text-center px-2 line-clamp-2 leading-tight">
+            <span className="text-3xl sm:text-4xl">📖</span>
+            <span className="text-[10px] sm:text-xs text-[var(--text-muted)] text-center px-2 line-clamp-2 leading-tight">
               {novel.title}
             </span>
           </div>
         )}
         {/* Status badge */}
-        <div className="absolute top-1.5 left-1.5">
-          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full capitalize backdrop-blur-sm ${getStatusColor(novel.status)}`}>
+        <div className="absolute top-1 left-1 sm:top-1.5 sm:left-1.5">
+          <span className={`text-[8px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.5 rounded-full capitalize backdrop-blur-sm ${getStatusColor(novel.status)}`}>
             {novel.status}
           </span>
         </div>
         {/* Rating badge */}
         {showRating && novel.rating > 0 && (
-          <div className="absolute top-1.5 right-1.5 flex items-center gap-0.5 bg-black/60 backdrop-blur-sm text-yellow-400 text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+          <div className="absolute top-1 right-1 sm:top-1.5 sm:right-1.5 flex items-center gap-0.5 bg-black/60 backdrop-blur-sm text-yellow-400 text-[8px] sm:text-[10px] font-bold px-1 sm:px-1.5 py-0.5 rounded-full">
             ★ {novel.rating.toFixed(1)}
           </div>
         )}
@@ -50,22 +50,22 @@ export function NovelCard({ novel, showRating = true }: NovelCardProps) {
       </div>
 
       {/* Info */}
-      <div className="p-2.5">
-        <h3 className="font-semibold text-xs leading-tight line-clamp-2 mb-1 group-hover:text-brand-500 transition-colors">
+      <div className="p-2 sm:p-2.5">
+        <h3 className="font-semibold text-[11px] sm:text-sm leading-tight line-clamp-2 mb-0.5 sm:mb-1 group-hover:text-brand-500 transition-colors">
           {novel.title}
         </h3>
-        <p className="text-[10px] text-[var(--text-muted)] truncate mb-1.5">
+        <p className="text-[10px] sm:text-xs text-[var(--text-muted)] truncate mb-1 sm:mb-1.5">
           {novel.author}
         </p>
-        <div className="flex items-center gap-2 text-[9px] text-[var(--text-muted)]">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-[9px] sm:text-[11px] text-[var(--text-muted)]">
           <span className="flex items-center gap-0.5">
-            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
             {formatNumber(novel.views)}
           </span>
-          <span>{novel.chapter_count}ch</span>
+          <span>{novel.chapter_count} ch</span>
         </div>
       </div>
     </Link>

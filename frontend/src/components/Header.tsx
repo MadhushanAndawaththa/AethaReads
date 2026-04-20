@@ -98,7 +98,7 @@ export function Header() {
                     {user.avatar_url ? (
                       <img src={user.avatar_url} alt="" className="w-7 h-7 rounded-full" />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold text-white">
+                      <div className="w-7 h-7 rounded-full bg-brand-600 flex items-center justify-center text-xs font-bold text-white">
                         {user.display_name[0]?.toUpperCase()}
                       </div>
                     )}
@@ -111,18 +111,18 @@ export function Header() {
                           <p className="font-medium text-sm truncate">{user.display_name}</p>
                           <p className="text-xs text-[var(--text-muted)] capitalize">{user.role}</p>
                         </div>
-                        <Link href="/library" className="block px-4 py-2 text-sm hover:bg-[var(--bg-secondary)] transition-colors" onClick={() => setShowUserMenu(false)}>
+                        <Link href="/library" className="block px-4 py-2 text-sm hover:bg-[var(--bg-hover)] transition-colors" onClick={() => setShowUserMenu(false)}>
                           My Library
                         </Link>
-                        <Link href="/dashboard" className="block px-4 py-2 text-sm hover:bg-[var(--bg-secondary)] transition-colors" onClick={() => setShowUserMenu(false)}>
+                        <Link href="/dashboard" className="block px-4 py-2 text-sm hover:bg-[var(--bg-hover)] transition-colors" onClick={() => setShowUserMenu(false)}>
                           Dashboard
                         </Link>
-                        <Link href={`/user/${user.username}`} className="block px-4 py-2 text-sm hover:bg-[var(--bg-secondary)] transition-colors" onClick={() => setShowUserMenu(false)}>
+                        <Link href={`/user/${user.username}`} className="block px-4 py-2 text-sm hover:bg-[var(--bg-hover)] transition-colors" onClick={() => setShowUserMenu(false)}>
                           Profile
                         </Link>
                         <button
                           onClick={async () => { setShowUserMenu(false); await logout(); }}
-                          className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-[var(--bg-secondary)] transition-colors"
+                          className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-[var(--bg-hover)] transition-colors"
                         >
                           Sign Out
                         </button>

@@ -11,8 +11,8 @@ export const metadata: Metadata = {
     default: `${SITE_NAME} - Read & Write Web Novels`,
     template: `%s | ${SITE_NAME}`,
   },
-  description: 'Read and write web novels, light novels, and web fiction. A community for readers and authors with a clean, fast experience.',
-  keywords: ['web novel', 'light novel', 'read online', 'web fiction', 'novel reader', 'write novels'],
+  description: 'Read and write web novels, light novels, and web fiction in English and Sinhala. A community for readers and authors with a clean, fast experience.',
+  keywords: ['web novel', 'light novel', 'read online', 'web fiction', 'novel reader', 'write novels', 'sinhala novels', 'sinhala web fiction', 'aetha reads'],
   openGraph: {
     type: 'website',
     siteName: SITE_NAME,

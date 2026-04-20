@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { ChapterReadResponse, ReadingSettings, ReadingTheme } from '@/lib/types';
 import { getReadingSettingsFromStorage, saveReadingSettings, DEFAULT_READING_SETTINGS } from '@/lib/utils';
 import { CommentSection } from './CommentSection';
+import { TranslateButton } from './TranslateButton';
 import { useAuth } from './AuthProvider';
 import { api } from '@/lib/api';
 
@@ -15,6 +17,7 @@ interface ChapterReaderProps {
 export function ChapterReader({ data }: ChapterReaderProps) {
   const { chapter, novel_title, novel_slug, prev_chapter, next_chapter, total_chapters } = data;
   const { user } = useAuth();
+  const router = useRouter();
 
   const [settings, setSettings] = useState<ReadingSettings>(DEFAULT_READING_SETTINGS);
   const [showControls, setShowControls] = useState(true);
@@ -73,25 +76,28 @@ export function ChapterReader({ data }: ChapterReaderProps) {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in input fields
+      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
       if (e.key === 'ArrowLeft' && prev_chapter) {
-        window.location.href = `/novel/${novel_slug}/${prev_chapter}`;
+        router.push(`/novel/${novel_slug}/${prev_chapter}`);
       } else if (e.key === 'ArrowRight' && next_chapter) {
-        window.location.href = `/novel/${novel_slug}/${next_chapter}`;
+        router.push(`/novel/${novel_slug}/${next_chapter}`);
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [prev_chapter, next_chapter, novel_slug]);
+  }, [prev_chapter, next_chapter, novel_slug, router]);
 
   // Reading progress sync — throttled every 30 seconds
   useEffect(() => {
     if (!user || !mounted) return;
 
     const syncProgress = () => {
-      const scrollPosition = Math.round(
-        (window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100
-      );
-      api.updateProgress(novel_slug, chapter.chapter_number, scrollPosition).catch(() => {});
+      const scrollableHeight = document.body.scrollHeight - window.innerHeight;
+      const scrollPosition = scrollableHeight > 0
+        ? Math.round((window.scrollY / scrollableHeight) * 100)
+        : 100;
+      api.updateProgress(novel_slug, chapter.chapter_number, Math.min(scrollPosition, 100)).catch(() => {});
     };
 
     const handleScroll = () => {
@@ -273,6 +279,7 @@ export function ChapterReader({ data }: ChapterReaderProps) {
 
         {/* Content */}
         <div
+          id="chapter-content"
           className={`reader-content ${fontClass}`}
           style={{
             fontSize: `${settings.fontSize}px`,
@@ -280,6 +287,9 @@ export function ChapterReader({ data }: ChapterReaderProps) {
           }}
           dangerouslySetInnerHTML={{ __html: chapter.content }}
         />
+
+        {/* Translation button */}
+        <TranslateButton targetElementId="chapter-content" />
 
         {/* End of chapter nav */}
         <div className="mt-12 border-t border-[var(--border-color)] pt-8">

@@ -61,8 +61,9 @@ export default function NewChapterPage() {
         )}
 
         <div>
-          <label className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Chapter Title *</label>
+          <label htmlFor="chapter-title" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Chapter Title *</label>
           <input
+            id="chapter-title"
             type="text"
             required
             value={title}
@@ -74,10 +75,11 @@ export default function NewChapterPage() {
 
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="block text-sm font-medium text-[var(--text-secondary)]">Content (Markdown) *</label>
+            <label htmlFor="chapter-content-input" className="block text-sm font-medium text-[var(--text-secondary)]">Content (Markdown) *</label>
             <span className="text-xs text-[var(--text-muted)]">{wordCount.toLocaleString()} words</span>
           </div>
           <textarea
+            id="chapter-content-input"
             rows={20}
             required
             value={content}

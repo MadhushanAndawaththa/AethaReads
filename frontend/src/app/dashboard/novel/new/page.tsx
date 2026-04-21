@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { api } from '@/lib/api';
-import type { Genre } from '@/lib/types';
+import type { Genre, NovelLanguage } from '@/lib/types';
 
 export default function NewNovelPage() {
   const { user, loading: authLoading } = useAuth();
@@ -13,7 +13,8 @@ export default function NewNovelPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
-  const [novelType, setNovelType] = useState('Web Novel');
+  const [novelType, setNovelType] = useState('web_novel');
+  const [language, setLanguage] = useState<NovelLanguage>('en');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -40,7 +41,8 @@ export default function NewNovelPage() {
         title: title.trim(),
         description: description.trim(),
         cover_url: coverUrl.trim(),
-        status: 'Ongoing',
+        status: 'ongoing',
+        language,
         novel_type: novelType,
         genre_ids: selectedGenres,
       });
@@ -66,8 +68,9 @@ export default function NewNovelPage() {
         )}
 
         <div>
-          <label className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Title *</label>
+          <label htmlFor="novel-title" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Title *</label>
           <input
+            id="novel-title"
             type="text"
             required
             value={title}
@@ -78,8 +81,9 @@ export default function NewNovelPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Description</label>
+          <label htmlFor="novel-description" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Description</label>
           <textarea
+            id="novel-description"
             rows={5}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -89,8 +93,9 @@ export default function NewNovelPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Cover Image URL</label>
+          <label htmlFor="novel-cover-url" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Cover Image URL</label>
           <input
+            id="novel-cover-url"
             type="url"
             value={coverUrl}
             onChange={(e) => setCoverUrl(e.target.value)}
@@ -100,15 +105,30 @@ export default function NewNovelPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Type</label>
+          <label htmlFor="novel-type" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Type</label>
           <select
+            id="novel-type"
             value={novelType}
             onChange={(e) => setNovelType(e.target.value)}
             className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:border-brand-500 outline-none transition"
           >
-            <option value="Web Novel">Web Novel</option>
-            <option value="Light Novel">Light Novel</option>
-            <option value="Published Novel">Published Novel</option>
+            <option value="web_novel">Web Novel</option>
+            <option value="light_novel">Light Novel</option>
+            <option value="published_novel">Published Novel</option>
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="novel-language" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Primary Language</label>
+          <select
+            id="novel-language"
+            value={language}
+            onChange={(e) => setLanguage(e.target.value as NovelLanguage)}
+            className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:border-brand-500 outline-none transition"
+          >
+            <option value="en">English</option>
+            <option value="si">සිංහල</option>
+            <option value="bilingual">Bilingual</option>
           </select>
         </div>
 

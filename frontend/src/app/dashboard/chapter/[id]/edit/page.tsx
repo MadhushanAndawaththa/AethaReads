@@ -118,10 +118,11 @@ export default function EditChapterPage() {
         )}
 
         <div>
-          <label className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">
+          <label htmlFor="edit-chapter-title" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">
             Chapter Title <span className="text-red-400">*</span>
           </label>
           <input
+            id="edit-chapter-title"
             type="text"
             required
             value={title}
@@ -133,12 +134,13 @@ export default function EditChapterPage() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-sm font-medium text-[var(--text-secondary)]">
+            <label htmlFor="edit-chapter-content" className="block text-sm font-medium text-[var(--text-secondary)]">
               Content (Markdown) <span className="text-red-400">*</span>
             </label>
             <span className="text-xs text-[var(--text-muted)]">{wordCount.toLocaleString()} words</span>
           </div>
           <textarea
+            id="edit-chapter-content"
             rows={24}
             required
             value={content}

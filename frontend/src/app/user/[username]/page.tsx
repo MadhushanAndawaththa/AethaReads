@@ -9,6 +9,14 @@ import type { Novel, UserProfile } from '@/lib/types';
 import { NovelCard } from '@/components/NovelCard';
 import { formatDate } from '@/lib/utils';
 
+function parseSocialLinks(raw: string | undefined) {
+  try {
+    return JSON.parse(raw || '{}') as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
 export default function UserProfilePage() {
   const params = useParams();
   const username = params.username as string;
@@ -72,30 +80,64 @@ export default function UserProfilePage() {
     .toUpperCase()
     .slice(0, 2);
 
+  const brandColor = profile.author_profile?.brand_color || '#4c6ef5';
+  const socialLinks = parseSocialLinks(profile.author_profile?.social_links);
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
       {/* Profile Header */}
-      <div className="card p-6 flex items-start gap-5">
-        {/* Avatar */}
-        <div className="relative w-20 h-20 rounded-2xl overflow-hidden bg-brand-500/10 flex items-center justify-center shrink-0 border border-[var(--border-color)]">
-          {profile.avatar_url ? (
-            <Image src={profile.avatar_url} alt={profile.display_name} fill className="object-cover" unoptimized sizes="80px" />
-          ) : (
-            <span className="text-2xl font-bold text-brand-500">{initials}</span>
-          )}
-        </div>
+      <div className="card overflow-hidden">
+        <div className="h-28 md:h-36" style={{ background: `linear-gradient(135deg, ${brandColor}, rgba(76, 110, 245, 0.12))` }} />
+        <div className="p-6 pt-0">
+          <div className="flex flex-col gap-5 md:flex-row md:items-start">
+            <div className="relative -mt-10 w-20 h-20 rounded-2xl overflow-hidden bg-brand-500/10 flex items-center justify-center shrink-0 border-4 border-[var(--bg-card)]">
+              {profile.avatar_url ? (
+                <Image src={profile.avatar_url} alt={profile.display_name} fill className="object-cover" unoptimized sizes="80px" />
+              ) : (
+                <span className="text-2xl font-bold text-brand-500">{initials}</span>
+              )}
+            </div>
 
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 flex-wrap mb-1">
-            <h1 className="text-xl font-bold">{profile.display_name}</h1>
-            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${roleColor[profile.role] ?? roleColor.reader}`}>
-              {roleLabel[profile.role] ?? profile.role}
-            </span>
+            <div className="flex-1 min-w-0 pt-2">
+              <div className="flex items-center gap-3 flex-wrap mb-1">
+                <h1 className="text-xl font-bold">{profile.display_name}</h1>
+                <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${roleColor[profile.role] ?? roleColor.reader}`}>
+                  {roleLabel[profile.role] ?? profile.role}
+                </span>
+              </div>
+              <p className="text-sm text-[var(--text-muted)] mb-2">@{profile.username}</p>
+              {profile.bio && <p className="text-sm text-[var(--text-secondary)] mb-3 max-w-2xl leading-relaxed">{profile.bio}</p>}
+
+              <div className="flex flex-wrap gap-3 text-xs text-[var(--text-muted)] mb-3">
+                <span>Joined {formatDate(profile.created_at)}</span>
+                {profile.author_profile && <span>{profile.author_profile.total_views.toLocaleString()} total views</span>}
+                {profile.author_profile && <span>{profile.author_profile.total_followers.toLocaleString()} followers</span>}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {profile.author_profile?.website_url && (
+                  <a href={profile.author_profile.website_url} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-brand-500/40 transition">
+                    Website
+                  </a>
+                )}
+                {socialLinks.facebook && (
+                  <a href={socialLinks.facebook} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-brand-500/40 transition">
+                    Facebook
+                  </a>
+                )}
+                {socialLinks.discord && (
+                  <a href={socialLinks.discord} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-brand-500/40 transition">
+                    Discord
+                  </a>
+                )}
+                {socialLinks.patreon && (
+                  <a href={socialLinks.patreon} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-brand-500/40 transition">
+                    Support
+                  </a>
+                )}
+              </div>
+            </div>
           </div>
-          <p className="text-sm text-[var(--text-muted)] mb-2">@{profile.username}</p>
-          {profile.bio && <p className="text-sm text-[var(--text-secondary)] mb-3 max-w-xl">{profile.bio}</p>}
-          <p className="text-xs text-[var(--text-muted)]">Joined {formatDate(profile.created_at)}</p>
         </div>
       </div>
 

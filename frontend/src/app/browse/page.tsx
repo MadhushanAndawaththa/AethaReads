@@ -19,6 +19,7 @@ interface BrowsePageProps {
     sort?: string;
     status?: string;
     genre?: string;
+    language?: string;
   }>;
 }
 
@@ -28,6 +29,7 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
   const sort = params.sort || 'updated';
   const status = params.status || 'all';
   const genre = params.genre || '';
+  const language = params.language || '';
 
   let novelsData;
   try {
@@ -37,6 +39,7 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
       sort,
       status,
       genre,
+      language,
     });
   } catch {
     novelsData = { data: [], page: 1, per_page: 24, total: 0, total_pages: 0 };
@@ -58,6 +61,7 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
         currentSort={sort}
         currentStatus={status}
         currentGenre={genre}
+        currentLanguage={language}
         genres={genres}
       />
 
@@ -74,7 +78,7 @@ export default async function BrowsePage({ searchParams }: BrowsePageProps) {
               currentPage={novelsData.page}
               totalPages={novelsData.total_pages}
               basePath="/browse"
-              params={{ sort, status, genre }}
+              params={{ sort, status, genre, language }}
             />
           )}
         </>

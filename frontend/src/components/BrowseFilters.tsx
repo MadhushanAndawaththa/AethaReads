@@ -7,10 +7,11 @@ interface BrowseFiltersProps {
   currentSort: string;
   currentStatus: string;
   currentGenre: string;
+  currentLanguage: string;
   genres: Genre[];
 }
 
-export function BrowseFilters({ currentSort, currentStatus, currentGenre, genres }: BrowseFiltersProps) {
+export function BrowseFilters({ currentSort, currentStatus, currentGenre, currentLanguage, genres }: BrowseFiltersProps) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -37,6 +38,13 @@ export function BrowseFilters({ currentSort, currentStatus, currentGenre, genres
     { label: 'All', value: 'all' },
     { label: 'Ongoing', value: 'ongoing' },
     { label: 'Completed', value: 'completed' },
+  ];
+
+  const languageOptions = [
+    { label: 'All Languages', value: 'all' },
+    { label: 'English', value: 'en' },
+    { label: 'සිංහල', value: 'si' },
+    { label: 'Bilingual', value: 'bilingual' },
   ];
 
   return (
@@ -74,6 +82,25 @@ export function BrowseFilters({ currentSort, currentStatus, currentGenre, genres
                   ? 'bg-brand-600 text-white'
                   : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--border-color)]'
               }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs text-[var(--text-muted)] mb-2 font-medium uppercase tracking-wider">Language</p>
+        <div className="flex flex-wrap gap-2">
+          {languageOptions.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => updateParam('language', opt.value)}
+              className={`text-xs px-3 py-1.5 rounded-full font-medium transition-all ${
+                (currentLanguage || 'all') === opt.value
+                  ? 'bg-brand-600 text-white'
+                  : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--border-color)]'
+              } ${opt.value === 'si' ? 'sinhala-text' : ''}`}
             >
               {opt.label}
             </button>

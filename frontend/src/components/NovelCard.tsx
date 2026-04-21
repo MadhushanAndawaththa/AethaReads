@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Novel } from '@/lib/types';
-import { formatNumber, getStatusColor } from '@/lib/utils';
+import { formatNumber, getLanguageLabel, getStatusColor } from '@/lib/utils';
 
 interface NovelCardProps {
   novel: Novel;
@@ -26,7 +26,7 @@ export function NovelCard({ novel, showRating = true }: NovelCardProps) {
             unoptimized
           />
         ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-brand-900/30 to-brand-700/20">
+          <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br ${novel.language === 'en' ? 'from-purple-900/30 to-purple-700/20' : 'from-brand-900/30 to-brand-700/20'}`}>
             <span className="text-3xl sm:text-4xl">📖</span>
             <span className="text-[10px] sm:text-xs text-[var(--text-muted)] text-center px-2 line-clamp-2 leading-tight">
               {novel.title}
@@ -57,6 +57,11 @@ export function NovelCard({ novel, showRating = true }: NovelCardProps) {
         <p className="text-[10px] sm:text-xs text-[var(--text-muted)] truncate mb-1 sm:mb-1.5">
           {novel.author}
         </p>
+        <div className="mb-1 sm:mb-1.5">
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] sm:text-[10px] font-medium bg-brand-500/10 text-brand-500 ${novel.language === 'si' ? 'sinhala-text' : ''}`}>
+            {getLanguageLabel(novel.language)}
+          </span>
+        </div>
         <div className="flex items-center gap-1.5 sm:gap-2 text-[9px] sm:text-[11px] text-[var(--text-muted)]">
           <span className="flex items-center gap-0.5">
             <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

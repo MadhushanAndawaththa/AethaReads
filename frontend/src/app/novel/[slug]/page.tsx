@@ -1,6 +1,6 @@
 import { api } from '@/lib/api';
 import { notFound } from 'next/navigation';
-import { SITE_NAME, SITE_URL, formatNumber, formatDate, getStatusColor } from '@/lib/utils';
+import { SITE_NAME, SITE_URL, formatNumber, formatDate, getLanguageLabel, getStatusColor } from '@/lib/utils';
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
@@ -97,7 +97,7 @@ export default async function NovelPage({ params }: NovelPageProps) {
                   />
                 </div>
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-brand-900/30 to-brand-700/20 text-[var(--text-muted)]">
+                <div className={`w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br ${novel.language === 'en' ? 'from-purple-900/30 to-purple-700/20' : 'from-brand-900/30 to-brand-700/20'} text-[var(--text-muted)]`}>
                   <span className="text-4xl">📖</span>
                 </div>
               )}
@@ -117,6 +117,9 @@ export default async function NovelPage({ params }: NovelPageProps) {
             <div className="flex flex-wrap gap-2 mb-3">
               <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${getStatusColor(novel.status)}`}>
                 {novel.status}
+              </span>
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full bg-brand-500/10 text-brand-500 ${novel.language === 'si' ? 'sinhala-text' : ''}`}>
+                {getLanguageLabel(novel.language)}
               </span>
               {novel.genres?.map((genre) => (
                 <Link

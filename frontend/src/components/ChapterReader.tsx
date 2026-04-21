@@ -6,13 +6,16 @@ import { useRouter } from 'next/navigation';
 import type { ChapterReadResponse, ReadingSettings, ReadingTheme } from '@/lib/types';
 import { getReadingSettingsFromStorage, saveReadingSettings, DEFAULT_READING_SETTINGS } from '@/lib/utils';
 import { CommentSection } from './CommentSection';
-import { TranslateButton } from './TranslateButton';
+import { TranslateButton, type TranslationLang } from './TranslateButton';
 import { useAuth } from './AuthProvider';
 import { api } from '@/lib/api';
+import { sanitizeChapterHtml } from '@/lib/security';
 
 interface ChapterReaderProps {
   data: ChapterReadResponse;
 }
+
+const TRANSLATION_STORAGE_KEY = (slug: string) => `aetha-translation-${slug}`;
 
 export function ChapterReader({ data }: ChapterReaderProps) {
   const { chapter, novel_title, novel_slug, prev_chapter, next_chapter, total_chapters } = data;
@@ -25,6 +28,107 @@ export function ChapterReader({ data }: ChapterReaderProps) {
   const [mounted, setMounted] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const progressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Translation state ───────────────────────────────────────────────
+  const sanitizedContent = sanitizeChapterHtml(chapter.content);
+  const [translationLang, setTranslationLang] = useState<TranslationLang>('original');
+  const [displayContent, setDisplayContent] = useState(sanitizedContent);
+  const [translating, setTranslating] = useState(false);
+
+  // Core translation function — operates on HTML string, stores result in state
+  const performTranslation = useCallback(async (
+    targetLang: TranslationLang,
+    originalHtml: string,
+    sourceLang: 'en' | 'si' | 'bilingual',
+  ) => {
+    if (targetLang === 'original') {
+      setDisplayContent(originalHtml);
+      setTranslationLang('original');
+      return;
+    }
+    // Same language as source — no translation needed
+    if ((sourceLang === 'en' && targetLang === 'en') || (sourceLang === 'si' && targetLang === 'si')) {
+      setDisplayContent(originalHtml);
+      setTranslationLang(targetLang);
+      return;
+    }
+
+    setTranslating(true);
+    setTranslationLang(targetLang);
+
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(originalHtml, 'text/html');
+      const paragraphs = Array.from(doc.querySelectorAll('p')).filter(p => p.textContent?.trim());
+      const apiSourceLang = sourceLang === 'bilingual' ? 'auto' : sourceLang;
+
+      if (paragraphs.length > 0) {
+        await Promise.all(
+          paragraphs.map(async (p) => {
+            const text = p.textContent || '';
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${apiSourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Translation fetch failed');
+            const result = await res.json();
+            p.textContent = (result[0] as Array<[string]>).map((s) => s[0]).join('');
+            if (targetLang === 'si') {
+              p.classList.add('sinhala-text');
+            } else {
+              p.classList.remove('sinhala-text');
+            }
+          })
+        );
+        setDisplayContent(sanitizeChapterHtml(doc.body.innerHTML));
+      } else {
+        // Fallback for plain-text content with no <p> tags
+        const fullText = doc.body.textContent || '';
+        if (fullText.trim()) {
+          const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${apiSourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(fullText)}`;
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('Translation fetch failed');
+          const result = await res.json();
+          const translatedText = (result[0] as Array<[string]>).map((s: [string]) => s[0]).join('');
+          const paragraph = doc.createElement('p');
+          paragraph.textContent = translatedText;
+          if (targetLang === 'si') {
+            paragraph.classList.add('sinhala-text');
+          }
+          doc.body.innerHTML = '';
+          doc.body.appendChild(paragraph);
+          setDisplayContent(sanitizeChapterHtml(doc.body.innerHTML));
+        }
+      }
+    } catch {
+      // Revert to original on failure
+      setDisplayContent(originalHtml);
+      setTranslationLang('original');
+    } finally {
+      setTranslating(false);
+    }
+  }, []);
+
+  // User-facing translate handler — saves preference to localStorage
+  const handleTranslate = useCallback(async (targetLang: TranslationLang) => {
+    try {
+      localStorage.setItem(TRANSLATION_STORAGE_KEY(novel_slug), targetLang);
+    } catch {}
+    await performTranslation(targetLang, sanitizedContent, data.novel_language);
+  }, [novel_slug, sanitizedContent, data.novel_language, performTranslation]);
+
+  // On chapter change: reset display content and auto-apply saved preference
+  useEffect(() => {
+    if (!mounted) return;
+    setDisplayContent(sanitizedContent);
+    setTranslationLang('original');
+    try {
+      const saved = localStorage.getItem(TRANSLATION_STORAGE_KEY(novel_slug)) as TranslationLang | null;
+      if (saved && saved !== 'original') {
+        performTranslation(saved, sanitizedContent, data.novel_language);
+      }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapter.id, mounted]);
+  // ────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     setMounted(true);
@@ -76,7 +180,6 @@ export function ChapterReader({ data }: ChapterReaderProps) {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      // Don't trigger shortcuts when typing in input fields
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
       if (e.key === 'ArrowLeft' && prev_chapter) {
         router.push(`/novel/${novel_slug}/${prev_chapter}`);
@@ -105,7 +208,6 @@ export function ChapterReader({ data }: ChapterReaderProps) {
       progressTimerRef.current = setTimeout(syncProgress, 30_000);
     };
 
-    // Sync immediately on mount (marks chapter as started)
     syncProgress();
 
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -116,6 +218,10 @@ export function ChapterReader({ data }: ChapterReaderProps) {
   }, [user, novel_slug, chapter.chapter_number, mounted]);
 
   const fontClass = settings.fontFamily === 'serif' ? 'font-reading' : 'font-sans';
+  const contentLangClass = translationLang === 'si' ? 'sinhala-text' : data.novel_language === 'si' ? 'sinhala-text' : '';
+
+  // Compact language label for top bar
+  const langLabel = translationLang === 'si' ? 'සිං' : translationLang === 'en' ? 'EN' : null;
 
   return (
     <div className="min-h-screen">
@@ -125,7 +231,7 @@ export function ChapterReader({ data }: ChapterReaderProps) {
           showControls ? 'translate-y-0' : '-translate-y-full'
         }`}
       >
-        <div className="max-w-3xl mx-auto px-4 h-12 flex items-center justify-between">
+        <div className="max-w-3xl mx-auto px-4 h-12 flex items-center justify-between gap-2">
           <Link
             href={`/novel/${novel_slug}`}
             className="flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors min-w-0"
@@ -136,15 +242,23 @@ export function ChapterReader({ data }: ChapterReaderProps) {
             <span className="truncate">{novel_title}</span>
           </Link>
 
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="p-2 rounded-lg hover:bg-[var(--bg-secondary)] transition-colors shrink-0"
-            aria-label="Reading settings"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Active translation badge */}
+            {langLabel && (
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-600/20 text-brand-400 ${translationLang === 'si' ? 'sinhala-text' : ''}`}>
+                {langLabel}
+              </span>
+            )}
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="p-2 rounded-lg hover:bg-[var(--bg-secondary)] transition-colors"
+              aria-label="Reading settings"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -237,7 +351,7 @@ export function ChapterReader({ data }: ChapterReaderProps) {
           </div>
 
           {/* Max Width */}
-          <div>
+          <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs text-[var(--text-secondary)]">Max Width</p>
               <span className="text-xs text-[var(--text-muted)]">{settings.maxWidth}px</span>
@@ -252,6 +366,32 @@ export function ChapterReader({ data }: ChapterReaderProps) {
               className="w-full accent-brand-500"
             />
           </div>
+
+          {/* Translation */}
+          <div className="pt-3 border-t border-[var(--border-color)]">
+            <p className="text-xs text-[var(--text-secondary)] mb-2">Translate</p>
+            <div className="flex flex-wrap gap-1.5">
+              {(['original', 'en', 'si'] as TranslationLang[]).map((lang) => (
+                <button
+                  key={lang}
+                  onClick={() => { handleTranslate(lang); }}
+                  disabled={translating || translationLang === lang}
+                  className={`text-xs px-2.5 py-1 rounded-md transition-colors ${lang === 'si' ? 'sinhala-text' : ''} ${
+                    translationLang === lang
+                      ? 'bg-brand-600 text-white'
+                      : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--border-color)]'
+                  } disabled:opacity-50`}
+                >
+                  {lang === 'original' ? 'Original' : lang === 'si' ? 'සිංහල' : 'English'}
+                </button>
+              ))}
+              {translating && (
+                <div className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b border-brand-500" />
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -265,31 +405,58 @@ export function ChapterReader({ data }: ChapterReaderProps) {
         }}
       >
         {/* Chapter heading */}
-        <header className="mb-8 text-center">
+        <header className="mb-6 text-center">
           <p className="text-xs text-[var(--text-muted)] mb-2">
             Chapter {chapter.chapter_number} of {total_chapters}
           </p>
           <h1 className="text-xl md:text-2xl font-bold mb-2">
             {chapter.title || `Chapter ${chapter.chapter_number}`}
           </h1>
-          <p className="text-xs text-[var(--text-muted)]">
+          <p className="text-xs text-[var(--text-muted)] mb-4">
             {chapter.word_count} words
           </p>
+          {/* Inline translation selector — always visible at top of chapter */}
+          <div className="flex flex-wrap items-center justify-center gap-1.5 pt-3 border-t border-[var(--border-color)]" onClick={(e) => e.stopPropagation()}>
+            <svg className="w-3.5 h-3.5 text-[var(--text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+            </svg>
+            {(['original', 'en', 'si'] as TranslationLang[]).map((lang) => (
+              <button
+                key={lang}
+                onClick={() => handleTranslate(lang)}
+                disabled={translating || translationLang === lang}
+                className={`text-xs px-2.5 py-1 rounded-full transition-colors ${lang === 'si' ? 'sinhala-text' : ''} ${
+                  translationLang === lang
+                    ? 'bg-brand-600 text-white'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                } disabled:opacity-50`}
+              >
+                {lang === 'original' ? 'Original' : lang === 'si' ? 'සිංහල' : 'English'}
+              </button>
+            ))}
+            {translating && <div className="animate-spin rounded-full h-3 w-3 border-b border-brand-500" />}
+          </div>
         </header>
 
-        {/* Content */}
+        {/* Content — rendered from state so React re-renders never revert translation */}
         <div
           id="chapter-content"
-          className={`reader-content ${fontClass}`}
+          lang={translationLang === 'si' || (translationLang === 'original' && data.novel_language === 'si') ? 'si' : 'en'}
+          className={`reader-content ${fontClass} ${contentLangClass}`}
           style={{
             fontSize: `${settings.fontSize}px`,
             lineHeight: settings.lineHeight,
           }}
-          dangerouslySetInnerHTML={{ __html: chapter.content }}
+          dangerouslySetInnerHTML={{ __html: displayContent }}
         />
 
-        {/* Translation button */}
-        <TranslateButton targetElementId="chapter-content" />
+        {/* Translation controls at bottom too for convenience */}
+        <TranslateButton
+          currentLang={translationLang}
+          translating={translating}
+          sourceLanguage={data.novel_language}
+          onTranslate={handleTranslate}
+        />
 
         {/* End of chapter nav */}
         <div className="mt-12 border-t border-[var(--border-color)] pt-8">
@@ -342,7 +509,7 @@ export function ChapterReader({ data }: ChapterReaderProps) {
             {showComments ? 'Hide Comments' : 'Show Comments'}
           </button>
           {showComments && (
-            <CommentSection chapterId={chapter.id} novelSlug={novel_slug} />
+            <CommentSection chapterId={chapter.id} />
           )}
         </div>
       </article>

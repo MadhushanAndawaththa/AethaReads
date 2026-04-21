@@ -9,7 +9,6 @@ import { useRouter } from 'next/navigation';
 
 interface CommentSectionProps {
   chapterId: string;
-  novelSlug: string;
 }
 
 function CommentAvatar({ displayName, avatarUrl }: { displayName: string; avatarUrl?: string }) {
@@ -74,7 +73,7 @@ function CommentItem({
   );
 }
 
-export function CommentSection({ chapterId, novelSlug }: CommentSectionProps) {
+export function CommentSection({ chapterId }: CommentSectionProps) {
   const { user } = useAuth();
   const router = useRouter();
   const [comments, setComments] = useState<Comment[]>([]);
@@ -124,8 +123,6 @@ export function CommentSection({ chapterId, novelSlug }: CommentSectionProps) {
       // silently ignore
     }
   };
-
-  const _ = novelSlug; // referenced via prop; kept for possible future link
 
   return (
     <div className="mt-12 border-t border-[var(--border-color)] pt-8">

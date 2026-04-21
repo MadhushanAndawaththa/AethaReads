@@ -87,6 +87,19 @@ func (h *AuthorHandler) GetMyNovels(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": novels})
 }
 
+// GET /api/author/novels/:id — fetch a single author-owned novel with genres
+func (h *AuthorHandler) GetMyNovel(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	novelID := c.Params("id")
+
+	novel, err := h.authorRepo.GetAuthorNovel(c.Context(), novelID, userID)
+	if err != nil {
+		return c.Status(404).JSON(models.ErrorResponse{Error: "Novel not found"})
+	}
+
+	return c.JSON(fiber.Map{"novel": novel})
+}
+
 // DELETE /api/author/novels/:id
 func (h *AuthorHandler) DeleteNovel(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
@@ -204,6 +217,44 @@ func (h *AuthorHandler) BecomeAuthor(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "Upgraded to author", "role": "author"})
 }
 
+// GET /api/user/profile — current user profile and author settings
+func (h *AuthorHandler) GetMyProfile(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	user, err := h.userRepo.GetByID(c.Context(), userID)
+	if err != nil {
+		return c.Status(404).JSON(models.ErrorResponse{Error: "User not found"})
+	}
+
+	authorProfile, _ := h.userRepo.CreateAuthorProfile(c.Context(), userID)
+
+	return c.JSON(fiber.Map{
+		"user":           user,
+		"author_profile": authorProfile,
+	})
+}
+
+// PUT /api/user/profile — update current user profile and author settings
+func (h *AuthorHandler) UpdateMyProfile(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+
+	var req models.UpdateUserProfileRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Invalid request body"})
+	}
+
+	user, err := h.userRepo.UpdateProfile(c.Context(), userID, &req)
+	if err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Failed to update profile"})
+	}
+
+	authorProfile, _ := h.userRepo.CreateAuthorProfile(c.Context(), userID)
+
+	return c.JSON(fiber.Map{
+		"user":           user,
+		"author_profile": authorProfile,
+	})
+}
+
 // GET /api/users/:username — public user profile
 func (h *AuthorHandler) GetUserProfile(c *fiber.Ctx) error {
 	username := c.Params("username")
@@ -225,6 +276,12 @@ func (h *AuthorHandler) GetUserProfile(c *fiber.Ctx) error {
 		"role":         user.Role,
 		"bio":          user.Bio,
 		"created_at":   user.CreatedAt,
+	}
+
+	if user.Role == "author" || user.Role == "admin" {
+		if authorProfile, err := h.userRepo.GetAuthorProfile(c.Context(), user.ID); err == nil {
+			profile["author_profile"] = authorProfile
+		}
 	}
 
 	// If author/admin, include their novels

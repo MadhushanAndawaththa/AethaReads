@@ -1,4 +1,4 @@
-import type { ReadingSettings } from './types';
+import type { NovelLanguage, ReadingSettings } from './types';
 
 export const DEFAULT_READING_SETTINGS: ReadingSettings = {
   theme: 'dark',
@@ -38,6 +38,33 @@ export function getStatusColor(status: string): string {
     case 'hiatus': return 'text-yellow-500 bg-yellow-500/10';
     default: return 'text-gray-500 bg-gray-500/10';
   }
+}
+
+export function getLanguageLabel(language: NovelLanguage): string {
+  switch (language) {
+    case 'si':
+      return 'සිංහල';
+    case 'bilingual':
+      return 'EN + SI';
+    default:
+      return 'English';
+  }
+}
+
+const COVER_GRADIENTS = [
+  'from-violet-950 via-purple-900 to-indigo-950',
+  'from-rose-950 via-pink-900 to-red-950',
+  'from-emerald-950 via-teal-900 to-cyan-950',
+  'from-amber-950 via-orange-900 to-red-950',
+  'from-blue-950 via-indigo-900 to-violet-950',
+  'from-slate-800 via-gray-700 to-slate-900',
+  'from-cyan-950 via-sky-900 to-blue-950',
+  'from-fuchsia-950 via-purple-900 to-violet-950',
+];
+
+export function getCoverGradient(title: string): string {
+  const code = (title.charCodeAt(0) || 0) + (title.charCodeAt(1) || 0);
+  return COVER_GRADIENTS[code % COVER_GRADIENTS.length];
 }
 
 export function getReadingSettingsFromStorage(): ReadingSettings {

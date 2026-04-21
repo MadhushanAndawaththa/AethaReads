@@ -43,14 +43,14 @@ type CacheConfig struct {
 }
 
 type AuthConfig struct {
-	JWTSecret           string
-	AccessTokenExpiry   time.Duration
-	RefreshTokenExpiry  time.Duration
-	GoogleClientID      string
-	GoogleClientSecret  string
-	GoogleRedirectURL   string
-	CookieDomain        string
-	CookieSecure        bool
+	JWTSecret          string
+	AccessTokenExpiry  time.Duration
+	RefreshTokenExpiry time.Duration
+	GoogleClientID     string
+	GoogleClientSecret string
+	GoogleRedirectURL  string
+	CookieDomain       string
+	CookieSecure       bool
 }
 
 func Load() *Config {
@@ -95,7 +95,7 @@ func Load() *Config {
 			GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 			GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
 			GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/auth/google/callback"),
-			CookieDomain:       getEnv("COOKIE_DOMAIN", "localhost"),
+			CookieDomain:       getEnv("COOKIE_DOMAIN", ""),
 			CookieSecure:       cookieSecure,
 		},
 	}

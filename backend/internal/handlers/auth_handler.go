@@ -187,26 +187,30 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	}
 
 	// Clear cookies
-	c.Cookie(&fiber.Cookie{
+	accessCookie := &fiber.Cookie{
 		Name:     "access_token",
 		Value:    "",
 		Expires:  time.Now().Add(-1 * time.Hour),
 		HTTPOnly: true,
 		Secure:   h.cfg.CookieSecure,
 		SameSite: "Lax",
-		Domain:   h.cfg.CookieDomain,
 		Path:     "/",
-	})
-	c.Cookie(&fiber.Cookie{
+	}
+	refreshCookie := &fiber.Cookie{
 		Name:     "refresh_token",
 		Value:    "",
 		Expires:  time.Now().Add(-1 * time.Hour),
 		HTTPOnly: true,
 		Secure:   h.cfg.CookieSecure,
 		SameSite: "Lax",
-		Domain:   h.cfg.CookieDomain,
 		Path:     "/",
-	})
+	}
+	if h.cfg.CookieDomain != "" {
+		accessCookie.Domain = h.cfg.CookieDomain
+		refreshCookie.Domain = h.cfg.CookieDomain
+	}
+	c.Cookie(accessCookie)
+	c.Cookie(refreshCookie)
 
 	return c.JSON(fiber.Map{"message": "Logged out"})
 }
@@ -250,26 +254,31 @@ func (h *AuthHandler) setTokenCookies(c *fiber.Ctx, user *models.User) error {
 		return err
 	}
 
-	c.Cookie(&fiber.Cookie{
+	accessCookie := &fiber.Cookie{
 		Name:     "access_token",
 		Value:    accessToken,
 		Expires:  time.Now().Add(h.cfg.AccessTokenExpiry),
 		HTTPOnly: true,
 		Secure:   h.cfg.CookieSecure,
 		SameSite: "Lax",
-		Domain:   h.cfg.CookieDomain,
 		Path:     "/",
-	})
-	c.Cookie(&fiber.Cookie{
+	}
+	refreshCookie := &fiber.Cookie{
 		Name:     "refresh_token",
 		Value:    refreshToken,
 		Expires:  time.Now().Add(h.cfg.RefreshTokenExpiry),
 		HTTPOnly: true,
 		Secure:   h.cfg.CookieSecure,
 		SameSite: "Lax",
-		Domain:   h.cfg.CookieDomain,
 		Path:     "/",
-	})
+	}
+	if h.cfg.CookieDomain != "" {
+		accessCookie.Domain = h.cfg.CookieDomain
+		refreshCookie.Domain = h.cfg.CookieDomain
+	}
+
+	c.Cookie(accessCookie)
+	c.Cookie(refreshCookie)
 
 	return nil
 }

@@ -33,6 +33,7 @@ func (h *NovelHandler) GetNovels(c *fiber.Ctx) error {
 	sortBy := c.Query("sort", "updated")
 	status := c.Query("status", "all")
 	genre := c.Query("genre", "")
+	language := c.Query("language", "")
 
 	if page < 1 {
 		page = 1
@@ -43,12 +44,12 @@ func (h *NovelHandler) GetNovels(c *fiber.Ctx) error {
 
 	// Check cache first
 	ctx := c.Context()
-	cached, err := h.cache.GetCatalog(ctx, page, perPage, sortBy, status, genre)
+	cached, err := h.cache.GetCatalog(ctx, page, perPage, sortBy, status, genre, language)
 	if err == nil && cached != nil {
 		return c.JSON(cached)
 	}
 
-	novels, total, err := h.novelRepo.GetAll(ctx, page, perPage, sortBy, status, genre)
+	novels, total, err := h.novelRepo.GetAll(ctx, page, perPage, sortBy, status, genre, language)
 	if err != nil {
 		log.Printf("error fetching novels: %v", err)
 		return c.Status(500).JSON(models.ErrorResponse{Error: "Failed to fetch novels"})
@@ -65,7 +66,7 @@ func (h *NovelHandler) GetNovels(c *fiber.Ctx) error {
 	}
 
 	// Cache the result
-	_ = h.cache.SetCatalog(ctx, page, perPage, sortBy, status, genre, resp)
+	_ = h.cache.SetCatalog(ctx, page, perPage, sortBy, status, genre, language, resp)
 
 	return c.JSON(resp)
 }
@@ -141,12 +142,13 @@ func (h *NovelHandler) GetChapter(c *fiber.Ctx) error {
 	go h.chapterRepo.IncrementViews(chapter.ID)
 
 	resp := models.ChapterReadResponse{
-		Chapter:     *chapter,
-		NovelTitle:  novel.Title,
-		NovelSlug:   novel.Slug,
-		PrevChapter: prev,
-		NextChapter: next,
-		TotalChaps:  totalChaps,
+		Chapter:       *chapter,
+		NovelTitle:    novel.Title,
+		NovelSlug:     novel.Slug,
+		NovelLanguage: novel.Language,
+		PrevChapter:   prev,
+		NextChapter:   next,
+		TotalChaps:    totalChaps,
 	}
 
 	return c.JSON(resp)

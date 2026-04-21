@@ -1,5 +1,6 @@
 import type {
   Novel,
+  NovelWithGenres,
   NovelDetailResponse,
   ChapterReadResponse,
   PaginatedResponse,
@@ -13,14 +14,17 @@ import type {
   ReadingProgress,
   Chapter,
   ChapterListItem,
+  CurrentProfileResponse,
 } from './types';
 
 // Server-side fetcher: full URL so Next.js server (inside Docker) can reach the backend directly.
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
+let refreshPromise: Promise<boolean> | null = null;
+
 async function fetcher<T>(url: string): Promise<T> {
   const res = await fetch(`${API_BASE}${url}`, {
-    next: { revalidate: 60 },
+    cache: 'no-store',
   });
   if (!res.ok) {
     throw new Error(`API Error: ${res.status} ${res.statusText}`);
@@ -31,14 +35,53 @@ async function fetcher<T>(url: string): Promise<T> {
 // Client-side fetcher: relative path so the browser sends the request to the
 // Next.js server, which rewrites /api/* → backend via the proxy rule in
 // next.config.js. This avoids both CORS issues and Docker hostname resolution.
-async function clientFetcher<T>(url: string, options?: RequestInit): Promise<T> {
+async function parseClientError(res: Response): Promise<Error> {
+  const body = await res.json().catch(() => ({}));
+  return new Error(body.error || `API Error: ${res.status}`);
+}
+
+function canRetryWithRefresh(url: string, retryAuth: boolean): boolean {
+  if (!retryAuth) return false;
+  return ![
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/refresh',
+    '/api/auth/logout',
+  ].some((path) => url.startsWith(path));
+}
+
+async function refreshSession(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = fetch('/api/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    })
+      .then((res) => res.ok)
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
+async function clientFetcher<T>(url: string, options?: RequestInit, retryAuth = true): Promise<T> {
   const res = await fetch(url, {
     credentials: 'include',
     ...options,
   });
+
+  if (res.status === 401 && canRetryWithRefresh(url, retryAuth)) {
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      return clientFetcher<T>(url, options, false);
+    }
+  }
+
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `API Error: ${res.status}`);
+    throw await parseClientError(res);
   }
   return res.json();
 }
@@ -58,6 +101,7 @@ export const api = {
     sort?: string;
     status?: string;
     genre?: string;
+    language?: string;
   }) => {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.set('page', String(params.page));
@@ -65,6 +109,7 @@ export const api = {
     if (params?.sort) searchParams.set('sort', params.sort);
     if (params?.status) searchParams.set('status', params.status);
     if (params?.genre) searchParams.set('genre', params.genre);
+    if (params?.language) searchParams.set('language', params.language);
     const qs = searchParams.toString();
     return fetcher<PaginatedResponse<Novel>>(`/api/novels${qs ? `?${qs}` : ''}`);
   },
@@ -107,9 +152,12 @@ export const api = {
   getMyNovels: () =>
     authFetcher<{ data: Novel[] }>('/api/author/novels'),
 
+  getMyNovel: (id: string) =>
+    authFetcher<{ novel: NovelWithGenres }>(`/api/author/novels/${id}`),
+
   createNovel: (data: {
     title: string; description: string; cover_url: string;
-    status: string; novel_type: string; genre_ids: string[];
+    status: string; language: string; novel_type: string; genre_ids: string[];
   }) =>
     authFetcher<Novel>('/api/author/novels', {
       method: 'POST', body: JSON.stringify(data),
@@ -200,6 +248,22 @@ export const api = {
 
   markNotificationsRead: () =>
     authFetcher<{ message: string }>('/api/user/notifications/read', { method: 'POST' }),
+
+  getMyProfile: () =>
+    authFetcher<CurrentProfileResponse>('/api/user/profile'),
+
+  updateMyProfile: (data: {
+    display_name?: string;
+    avatar_url?: string;
+    bio?: string;
+    brand_color?: string;
+    website_url?: string;
+    social_links?: string;
+  }) =>
+    authFetcher<CurrentProfileResponse>('/api/user/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
 
   // ── User Profile ────────────────
   getUserProfile: (username: string) =>

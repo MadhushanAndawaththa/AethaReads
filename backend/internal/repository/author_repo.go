@@ -23,11 +23,45 @@ func NewAuthorRepository(db *sqlx.DB) *AuthorRepository {
 	return &AuthorRepository{db: db}
 }
 
+func normalizeNovelStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "completed":
+		return "completed"
+	case "hiatus":
+		return "hiatus"
+	default:
+		return "ongoing"
+	}
+}
+
+func normalizeNovelType(novelType string) string {
+	normalized := strings.ToLower(strings.TrimSpace(novelType))
+	normalized = strings.ReplaceAll(normalized, " ", "_")
+	if normalized == "" {
+		return "web_novel"
+	}
+	return normalized
+}
+
+func normalizeNovelLanguage(language string) string {
+	switch strings.ToLower(strings.TrimSpace(language)) {
+	case "si", "sinhala":
+		return "si"
+	case "bilingual", "si-en", "en-si":
+		return "bilingual"
+	default:
+		return "en"
+	}
+}
+
 // ===================== Novel Management =====================
 
 func (r *AuthorRepository) CreateNovel(ctx context.Context, authorID string, req *models.CreateNovelRequest) (*models.Novel, error) {
 	id := uuid.New().String()
 	novelSlug := slug.Make(req.Title) + "-" + id[:8]
+	status := normalizeNovelStatus(req.Status)
+	novelType := normalizeNovelType(req.NovelType)
+	language := normalizeNovelLanguage(req.Language)
 
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -37,10 +71,10 @@ func (r *AuthorRepository) CreateNovel(ctx context.Context, authorID string, req
 
 	novel := &models.Novel{}
 	err = tx.GetContext(ctx, novel, `
-		INSERT INTO novels (id, title, slug, author_id, description, cover_url, status, novel_type, author)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '')
+		INSERT INTO novels (id, title, slug, author_id, description, cover_url, status, language, novel_type, author)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, '')
 		RETURNING *`,
-		id, req.Title, novelSlug, authorID, req.Description, req.CoverURL, req.Status, req.NovelType)
+		id, req.Title, novelSlug, authorID, req.Description, req.CoverURL, status, language, novelType)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +118,12 @@ func (r *AuthorRepository) UpdateNovel(ctx context.Context, novelID, authorID st
 	}
 	if req.Status != nil {
 		sets = append(sets, "status = $"+strconv.Itoa(idx))
-		args = append(args, *req.Status)
+		args = append(args, normalizeNovelStatus(*req.Status))
+		idx++
+	}
+	if req.Language != nil {
+		sets = append(sets, "language = $"+strconv.Itoa(idx))
+		args = append(args, normalizeNovelLanguage(*req.Language))
 		idx++
 	}
 
@@ -136,6 +175,23 @@ func (r *AuthorRepository) GetAuthorNovels(ctx context.Context, authorID string)
 	err := r.db.SelectContext(ctx, &novels,
 		"SELECT * FROM novels WHERE author_id = $1 ORDER BY updated_at DESC", authorID)
 	return novels, err
+}
+
+func (r *AuthorRepository) GetAuthorNovel(ctx context.Context, novelID, authorID string) (*models.NovelWithGenres, error) {
+	novel := &models.Novel{}
+	if err := r.db.GetContext(ctx, novel, "SELECT * FROM novels WHERE id = $1 AND author_id = $2", novelID, authorID); err != nil {
+		return nil, err
+	}
+
+	genres, err := NewNovelRepository(r.db).GetGenresByNovelID(ctx, novelID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.NovelWithGenres{
+		Novel:  *novel,
+		Genres: genres,
+	}, nil
 }
 
 func (r *AuthorRepository) DeleteNovel(ctx context.Context, novelID, authorID string) error {

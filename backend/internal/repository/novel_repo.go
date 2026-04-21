@@ -18,7 +18,7 @@ func NewNovelRepository(db *sqlx.DB) *NovelRepository {
 	return &NovelRepository{db: db}
 }
 
-func (r *NovelRepository) GetAll(ctx context.Context, page, perPage int, sortBy, status, genre string) ([]models.Novel, int, error) {
+func (r *NovelRepository) GetAll(ctx context.Context, page, perPage int, sortBy, status, genre, language string) ([]models.Novel, int, error) {
 	offset := (page - 1) * perPage
 
 	// Build shared filter clauses
@@ -29,6 +29,12 @@ func (r *NovelRepository) GetAll(ctx context.Context, page, perPage int, sortBy,
 	if status != "" && status != "all" {
 		where += " AND n.status = $" + strconv.Itoa(argIdx)
 		args = append(args, status)
+		argIdx++
+	}
+
+	if language != "" && language != "all" {
+		where += " AND n.language = $" + strconv.Itoa(argIdx)
+		args = append(args, language)
 		argIdx++
 	}
 

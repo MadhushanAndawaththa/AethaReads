@@ -53,6 +53,7 @@ func SeedData(db *sqlx.DB) {
 		Description string
 		CoverURL    string
 		Status      string
+		Language    string
 		NovelType   string
 		Genres      []string
 	}{
@@ -62,6 +63,7 @@ func SeedData(db *sqlx.DB) {
 			Description: "In a world where cultivation determines destiny, a young orphan discovers an ancient technique that could reshape the heavens. Follow Lin Wei as he ascends from the lowest sect to challenge the very gods themselves. With each breakthrough, the stakes grow higher and the enemies more formidable. Will he achieve immortality, or will the celestial tribulation consume him?",
 			CoverURL:    "/covers/celestial-throne.jpg",
 			Status:      "ongoing",
+			Language:    "en",
 			NovelType:   "web_novel",
 			Genres:      []string{"Action", "Fantasy", "Martial Arts"},
 		},
@@ -71,6 +73,7 @@ func SeedData(db *sqlx.DB) {
 			Description: "When the world's most advanced VRMMO merges with reality, programmer Alex Chen finds himself wielding admin privileges in a world gone mad. Monsters roam city streets, skill trees replace education, and death is no longer permanent—it's just expensive. As factions form and wars ignite, Alex must decide: save the old world or rule the new one.",
 			CoverURL:    "/covers/digital-overlord.jpg",
 			Status:      "ongoing",
+			Language:    "en",
 			NovelType:   "web_novel",
 			Genres:      []string{"Action", "Sci-Fi", "Adventure"},
 		},
@@ -80,6 +83,7 @@ func SeedData(db *sqlx.DB) {
 			Description: "A classical pianist who's lost her passion crosses paths with a street musician playing under the moonlight. In a city that never sleeps, two melodies intertwine into a symphony of love, loss, and rediscovery. But when her past catches up and his secrets surface, can their duet survive the dissonance?",
 			CoverURL:    "/covers/moonlit-serenade.jpg",
 			Status:      "completed",
+			Language:    "en",
 			NovelType:   "web_novel",
 			Genres:      []string{"Romance", "Drama", "Slice of Life"},
 		},
@@ -89,6 +93,7 @@ func SeedData(db *sqlx.DB) {
 			Description: "Beneath the surface world lies the Abyss—an ever-shifting labyrinth of nightmares. Kael, a disgraced knight, descends into its depths seeking redemption. Each floor tests not just strength but sanity. The deeper he goes, the more he realizes: the Abyss isn't just a dungeon—it's alive, and it's been waiting for him.",
 			CoverURL:    "/covers/abyss-walker.jpg",
 			Status:      "ongoing",
+			Language:    "en",
 			NovelType:   "web_novel",
 			Genres:      []string{"Fantasy", "Adventure", "Horror"},
 		},
@@ -98,6 +103,7 @@ func SeedData(db *sqlx.DB) {
 			Description: "After dying in a truck accident (naturally), office worker Tanaka Shou wakes up in his favorite novel—as the side character destined to die in chapter 47. Armed with knowledge of the plot and zero combat skills, he has to rewrite his fate without derailing the protagonist's story. Easier said than done when the protagonist is an idiot.",
 			CoverURL:    "/covers/reborn-side-character.jpg",
 			Status:      "ongoing",
+			Language:    "en",
 			NovelType:   "web_novel",
 			Genres:      []string{"Comedy", "Fantasy", "Adventure"},
 		},
@@ -107,8 +113,19 @@ func SeedData(db *sqlx.DB) {
 			Description: "In a kingdom plagued by a curse that erases memories, detective Lira must solve murders no one remembers committing. Each case peels back layers of a conspiracy reaching the throne itself. But as she digs deeper, her own memories begin to fade—and she starts finding her name in the case files.",
 			CoverURL:    "/covers/shadows-forgotten.jpg",
 			Status:      "ongoing",
+			Language:    "en",
 			NovelType:   "web_novel",
 			Genres:      []string{"Mystery", "Fantasy", "Supernatural"},
+		},
+		{
+			Title:       "සඳ එළියේ ගමන",
+			Author:      "නීලා සෙවනැලි",
+			Description: "දුර ගමේ සිට නගරයට පැමිණෙන තරුණියකගේ ජීවිතය, ආදරය, බලාපොරොත්තු සහ නැවත නැගී සිටීම ගැන කියන සිංහල වෙබ් නවකතාවක්.",
+			CoverURL:    "",
+			Status:      "ongoing",
+			Language:    "si",
+			NovelType:   "web_novel",
+			Genres:      []string{"Drama", "Romance", "Slice of Life"},
 		},
 	}
 
@@ -116,9 +133,9 @@ func SeedData(db *sqlx.DB) {
 		novelID := uuid.New()
 		novelSlug := slug.Make(n.Title)
 		_, err := tx.Exec(
-			`INSERT INTO novels (id, title, slug, author, description, cover_url, status, novel_type, chapter_count)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-			novelID, n.Title, novelSlug, n.Author, n.Description, n.CoverURL, n.Status, n.NovelType, 5,
+			`INSERT INTO novels (id, title, slug, author, description, cover_url, status, language, novel_type, chapter_count)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+			novelID, n.Title, novelSlug, n.Author, n.Description, n.CoverURL, n.Status, n.Language, n.NovelType, 5,
 		)
 		if err != nil {
 			log.Printf("Novel seed error: %v", err)
@@ -145,7 +162,7 @@ func SeedData(db *sqlx.DB) {
 		}
 		for i, ct := range chapterTitles {
 			chapID := uuid.New()
-			content := generateSampleContent(n.Title, i+1, ct)
+			content := generateSampleContent(n.Title, i+1, ct, n.Language)
 			tx.Exec(
 				`INSERT INTO chapters (id, novel_id, chapter_number, title, content, word_count)
 				VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -162,7 +179,22 @@ func SeedData(db *sqlx.DB) {
 	log.Println("✅ Seed data inserted successfully")
 }
 
-func generateSampleContent(novelTitle string, chapterNum int, chapterTitle string) string {
+func generateSampleContent(novelTitle string, chapterNum int, chapterTitle, language string) string {
+	if language == "si" {
+		sinhalaParagraphs := []string{
+			"උදෑසන හිරු එළිය පරණ වත්ත පුරා පැතිර යද්දී, අලුත් දවසක් අරඹන ශබ්දය ගම පුරා පැතිරිණි. සුළඟත් එක්ක බලාපොරොත්තුත් නිහඬව ගමන් කළා.",
+			"අද කියන එක හෙට වෙනස් වෙන්න පුළුවන් ලෝකයක, ඇය ගත් සෑම තීරණයක්ම හදවතට බරක් වුණා. ඒත් ආපසු හැරෙන්න ඉඩක් තිබුණේ නැහැ.",
+			"කොළඹ නගරයේ විදුලි ආලෝක අතර මැවුණු හීන, ගමේ නිහඬ අහස යට පෝෂණය වෙච්ච හීනවලට වඩා වෙනස් වුණත්, ඒ දෙකේම අරුත සෙවීම ඇය නවත්තලා නැහැ.",
+			"කෙනෙකුට කෙනෙකු හමුවීම හැම වෙලාවෙම අහම්බයක් නෙවෙයි. සමහර හමුවීම් ජීවිතේම දිශාව වෙනස් කරනවා.",
+		}
+
+		content := ""
+		for _, paragraph := range sinhalaParagraphs {
+			content += "<p>" + paragraph + "</p>\n\n"
+		}
+		return content
+	}
+
 	paragraphs := []string{
 		"The morning sun cast long shadows across the ancient courtyard, its golden light filtering through the leaves of the centuries-old banyan tree that stood sentinel at the entrance. Birds sang their dawn chorus, oblivious to the weight of destiny that hung in the air like morning mist.",
 		"Silence stretched between them, thick and unyielding. Neither dared to speak first, for words once spoken could never be retrieved—much like arrows loosed from a bow. The tension was palpable, a living thing that coiled around them both.",

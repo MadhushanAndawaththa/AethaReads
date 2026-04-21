@@ -73,20 +73,23 @@ func Setup(app *fiber.App, h *Handlers, allowedOrigins, jwtSecret string) {
 		auth.Get("/me", middleware.RequireAuth(jwtSecret), h.Auth.GetMe)
 
 		// ── Author routes (auth required) ────────────────
-		author := api.Group("/author", middleware.RequireAuth(jwtSecret), middleware.RequireRole("author", "admin"))
-		author.Get("/novels", h.Author.GetMyNovels)
-		author.Post("/novels", h.Author.CreateNovel)
-		author.Put("/novels/:id", h.Author.UpdateNovel)
-		author.Delete("/novels/:id", h.Author.DeleteNovel)
-		author.Get("/novels/:id/chapters", h.Author.GetMyChapters)
-		author.Post("/novels/:id/chapters", h.Author.CreateChapter)
-		author.Get("/chapters/:id", h.Author.GetChapterForEdit)
-		author.Put("/chapters/:id", h.Author.UpdateChapter)
-		author.Delete("/chapters/:id", h.Author.DeleteChapter)
-		author.Get("/stats", h.Author.GetStats)
+		author := api.Group("/author", middleware.RequireAuth(jwtSecret))
 
 		// Become author — any authenticated user
-		api.Post("/author/become", middleware.RequireAuth(jwtSecret), h.Author.BecomeAuthor)
+		author.Post("/become", h.Author.BecomeAuthor)
+
+		authorProtected := author.Group("", middleware.RequireRole("author", "admin"))
+		authorProtected.Get("/novels", h.Author.GetMyNovels)
+		authorProtected.Get("/novels/:id", h.Author.GetMyNovel)
+		authorProtected.Post("/novels", h.Author.CreateNovel)
+		authorProtected.Put("/novels/:id", h.Author.UpdateNovel)
+		authorProtected.Delete("/novels/:id", h.Author.DeleteNovel)
+		authorProtected.Get("/novels/:id/chapters", h.Author.GetMyChapters)
+		authorProtected.Post("/novels/:id/chapters", h.Author.CreateChapter)
+		authorProtected.Get("/chapters/:id", h.Author.GetChapterForEdit)
+		authorProtected.Put("/chapters/:id", h.Author.UpdateChapter)
+		authorProtected.Delete("/chapters/:id", h.Author.DeleteChapter)
+		authorProtected.Get("/stats", h.Author.GetStats)
 
 		// ── Community routes ────────────────
 		// Comments (public read, auth write)
@@ -114,6 +117,8 @@ func Setup(app *fiber.App, h *Handlers, allowedOrigins, jwtSecret string) {
 		user.Get("/notifications", h.Community.GetNotifications)
 		user.Post("/notifications/read", h.Community.MarkNotificationsRead)
 		user.Get("/progress", h.Community.GetAllProgress)
+		user.Get("/profile", h.Author.GetMyProfile)
+		user.Put("/profile", h.Author.UpdateMyProfile)
 
 		// ── Public user profiles ────────────────
 		api.Get("/users/:username", h.Author.GetUserProfile)

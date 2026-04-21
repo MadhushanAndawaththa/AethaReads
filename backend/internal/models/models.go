@@ -16,6 +16,7 @@ type Novel struct {
 	Description   string    `json:"description" db:"description"`
 	CoverURL      string    `json:"cover_url" db:"cover_url"`
 	Status        string    `json:"status" db:"status"`
+	Language      string    `json:"language" db:"language"`
 	NovelType     string    `json:"novel_type" db:"novel_type"`
 	Year          int       `json:"year" db:"year"`
 	Rating        float64   `json:"rating" db:"rating"`
@@ -215,6 +216,7 @@ type CreateNovelRequest struct {
 	Description string   `json:"description"`
 	CoverURL    string   `json:"cover_url"`
 	Status      string   `json:"status"`
+	Language    string   `json:"language"`
 	NovelType   string   `json:"novel_type"`
 	GenreIDs    []string `json:"genre_ids"`
 }
@@ -224,14 +226,24 @@ type UpdateNovelRequest struct {
 	Description *string  `json:"description"`
 	CoverURL    *string  `json:"cover_url"`
 	Status      *string  `json:"status"`
+	Language    *string  `json:"language"`
 	GenreIDs    []string `json:"genre_ids"`
+}
+
+type UpdateUserProfileRequest struct {
+	DisplayName *string `json:"display_name"`
+	AvatarURL   *string `json:"avatar_url"`
+	Bio         *string `json:"bio"`
+	BrandColor  *string `json:"brand_color"`
+	WebsiteURL  *string `json:"website_url"`
+	SocialLinks *string `json:"social_links"`
 }
 
 type CreateChapterRequest struct {
 	Title     string `json:"title"`
 	ContentMD string `json:"content_md"`
-	Status    string `json:"status"`      // draft, published, scheduled
-	PublishAt string `json:"publish_at"`   // ISO8601, for scheduled
+	Status    string `json:"status"`     // draft, published, scheduled
+	PublishAt string `json:"publish_at"` // ISO8601, for scheduled
 }
 
 type UpdateChapterRequest struct {
@@ -276,12 +288,13 @@ type NovelDetailResponse struct {
 }
 
 type ChapterReadResponse struct {
-	Chapter     Chapter `json:"chapter"`
-	NovelTitle  string  `json:"novel_title"`
-	NovelSlug   string  `json:"novel_slug"`
-	PrevChapter *int    `json:"prev_chapter"`
-	NextChapter *int    `json:"next_chapter"`
-	TotalChaps  int     `json:"total_chapters"`
+	Chapter       Chapter `json:"chapter"`
+	NovelTitle    string  `json:"novel_title"`
+	NovelSlug     string  `json:"novel_slug"`
+	NovelLanguage string  `json:"novel_language"`
+	PrevChapter   *int    `json:"prev_chapter"`
+	NextChapter   *int    `json:"next_chapter"`
+	TotalChaps    int     `json:"total_chapters"`
 }
 
 type AuthResponse struct {

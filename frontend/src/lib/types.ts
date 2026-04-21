@@ -1,5 +1,7 @@
 // API Types matching the Go backend models
 
+export type NovelLanguage = 'en' | 'si' | 'bilingual';
+
 export interface Novel {
   id: string;
   title: string;
@@ -10,6 +12,7 @@ export interface Novel {
   description: string;
   cover_url: string;
   status: string;
+  language: NovelLanguage;
   novel_type: string;
   year: number;
   rating: number;
@@ -28,6 +31,17 @@ export interface Genre {
 
 export interface NovelWithGenres extends Novel {
   genres: Genre[];
+}
+
+export interface AuthorProfileSettings {
+  user_id: string;
+  brand_color: string;
+  website_url: string;
+  social_links: string;
+  total_views: number;
+  total_followers: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Chapter {
@@ -74,6 +88,7 @@ export interface ChapterReadResponse {
   chapter: Chapter;
   novel_title: string;
   novel_slug: string;
+  novel_language: NovelLanguage;
   prev_chapter: number | null;
   next_chapter: number | null;
   total_chapters: number;
@@ -171,6 +186,12 @@ export interface UserProfile {
   created_at: string;
   novel_count?: number;
   follower_count?: number;
+  author_profile?: AuthorProfileSettings;
+}
+
+export interface CurrentProfileResponse {
+  user: User;
+  author_profile: AuthorProfileSettings;
 }
 
 export type ReadingTheme = 'light' | 'dark' | 'sepia';

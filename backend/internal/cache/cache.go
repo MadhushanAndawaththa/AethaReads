@@ -88,12 +88,12 @@ func (c *CacheService) SetNovel(ctx context.Context, slug string, resp *models.N
 
 // --- Catalog cache ---
 
-func catalogKey(page, perPage int, sortBy, status, genre string) string {
-	return fmt.Sprintf("catalog:%d:%d:%s:%s:%s", page, perPage, sortBy, status, genre)
+func catalogKey(page, perPage int, sortBy, status, genre, language string) string {
+	return fmt.Sprintf("catalog:%d:%d:%s:%s:%s:%s", page, perPage, sortBy, status, genre, language)
 }
 
-func (c *CacheService) GetCatalog(ctx context.Context, page, perPage int, sortBy, status, genre string) (*models.PaginatedResponse, error) {
-	key := catalogKey(page, perPage, sortBy, status, genre)
+func (c *CacheService) GetCatalog(ctx context.Context, page, perPage int, sortBy, status, genre, language string) (*models.PaginatedResponse, error) {
+	key := catalogKey(page, perPage, sortBy, status, genre, language)
 	data, err := c.rdb.Get(ctx, key).Bytes()
 	if err != nil {
 		return nil, err
@@ -106,8 +106,8 @@ func (c *CacheService) GetCatalog(ctx context.Context, page, perPage int, sortBy
 	return &resp, nil
 }
 
-func (c *CacheService) SetCatalog(ctx context.Context, page, perPage int, sortBy, status, genre string, resp *models.PaginatedResponse) error {
-	key := catalogKey(page, perPage, sortBy, status, genre)
+func (c *CacheService) SetCatalog(ctx context.Context, page, perPage int, sortBy, status, genre, language string, resp *models.PaginatedResponse) error {
+	key := catalogKey(page, perPage, sortBy, status, genre, language)
 	data, err := json.Marshal(resp)
 	if err != nil {
 		return err

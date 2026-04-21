@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"strconv"
+	"strings"
 	"time"
 
 	"aetha-backend/internal/models"
@@ -61,6 +63,74 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*m
 func (r *UserRepository) UpdateRole(ctx context.Context, userID, role string) error {
 	_, err := r.db.ExecContext(ctx, "UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2", role, userID)
 	return err
+}
+
+func (r *UserRepository) UpdateProfile(ctx context.Context, userID string, req *models.UpdateUserProfileRequest) (*models.User, error) {
+	sets := []string{}
+	args := []any{}
+	idx := 1
+
+	if req.DisplayName != nil {
+		sets = append(sets, "display_name = $"+strconv.Itoa(idx))
+		args = append(args, strings.TrimSpace(*req.DisplayName))
+		idx++
+	}
+	if req.AvatarURL != nil {
+		sets = append(sets, "avatar_url = $"+strconv.Itoa(idx))
+		args = append(args, strings.TrimSpace(*req.AvatarURL))
+		idx++
+	}
+	if req.Bio != nil {
+		sets = append(sets, "bio = $"+strconv.Itoa(idx))
+		args = append(args, strings.TrimSpace(*req.Bio))
+		idx++
+	}
+
+	if len(sets) > 0 {
+		sets = append(sets, "updated_at = NOW()")
+		query := "UPDATE users SET " + strings.Join(sets, ", ") + " WHERE id = $" + strconv.Itoa(idx)
+		args = append(args, userID)
+		if _, err := r.db.ExecContext(ctx, query, args...); err != nil {
+			return nil, err
+		}
+	}
+
+	if req.BrandColor != nil || req.WebsiteURL != nil || req.SocialLinks != nil {
+		if _, err := r.CreateAuthorProfile(ctx, userID); err != nil {
+			return nil, err
+		}
+
+		authorSets := []string{}
+		authorArgs := []any{}
+		authorIdx := 1
+
+		if req.BrandColor != nil {
+			authorSets = append(authorSets, "brand_color = $"+strconv.Itoa(authorIdx))
+			authorArgs = append(authorArgs, strings.TrimSpace(*req.BrandColor))
+			authorIdx++
+		}
+		if req.WebsiteURL != nil {
+			authorSets = append(authorSets, "website_url = $"+strconv.Itoa(authorIdx))
+			authorArgs = append(authorArgs, strings.TrimSpace(*req.WebsiteURL))
+			authorIdx++
+		}
+		if req.SocialLinks != nil {
+			authorSets = append(authorSets, "social_links = $"+strconv.Itoa(authorIdx))
+			authorArgs = append(authorArgs, strings.TrimSpace(*req.SocialLinks))
+			authorIdx++
+		}
+
+		if len(authorSets) > 0 {
+			authorSets = append(authorSets, "updated_at = NOW()")
+			query := "UPDATE author_profiles SET " + strings.Join(authorSets, ", ") + " WHERE user_id = $" + strconv.Itoa(authorIdx)
+			authorArgs = append(authorArgs, userID)
+			if _, err := r.db.ExecContext(ctx, query, authorArgs...); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return r.GetByID(ctx, userID)
 }
 
 // ===================== OAuth Accounts =====================

@@ -16,24 +16,46 @@ func RunMigrations(db *sqlx.DB) {
 		log.Fatalf("Migration driver error: %v", err)
 	}
 
-	m, err := migrate.NewWithDatabaseInstance(
+	migrationSources := []string{
 		"file://migrations",
-		"aetha_db",
-		driver,
-	)
-	if err != nil {
-		// Fallback to inline migration if files not found (e.g. running outside project root)
-		log.Printf("⚠️  Could not load migration files: %v — running inline fallback", err)
-		runInlineMigrations(db)
+		"file:///root/migrations",
+		"file:///app/migrations",
+	}
+
+	var migrationErr error
+	for _, source := range migrationSources {
+		m, err := migrate.NewWithDatabaseInstance(source, "aetha_db", driver)
+		if err != nil {
+			migrationErr = err
+			continue
+		}
+
+		version, dirty, versionErr := m.Version()
+		if versionErr == nil && dirty {
+			log.Printf("⚠️  Dirty migration version %d detected — reconciling development schema", version)
+			runInlineMigrations(db)
+			if err := m.Force(int(version)); err != nil {
+				log.Fatalf("Failed to recover dirty migration version %d: %v", version, err)
+			}
+		}
+
+		if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+			log.Fatalf("Migration failed: %v", err)
+		}
+
+		version, dirty, versionErr = m.Version()
+		if versionErr != nil {
+			log.Printf("✅ Migrations applied from %s", source)
+			return
+		}
+
+		log.Printf("✅ Migrations at version %d (dirty: %v) via %s", version, dirty, source)
 		return
 	}
 
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		log.Fatalf("Migration failed: %v", err)
-	}
-
-	version, dirty, _ := m.Version()
-	log.Printf("✅ Migrations at version %d (dirty: %v)", version, dirty)
+	// Fallback to inline migration if files not found (e.g. running outside project root)
+	log.Printf("⚠️  Could not load migration files: %v — running inline fallback", migrationErr)
+	runInlineMigrations(db)
 }
 
 // runInlineMigrations is a safety fallback for Docker where the working directory
@@ -52,6 +74,7 @@ func runInlineMigrations(db *sqlx.DB) {
 		description TEXT DEFAULT '',
 		cover_url VARCHAR(1000) DEFAULT '',
 		status VARCHAR(50) NOT NULL DEFAULT 'ongoing',
+		language VARCHAR(20) NOT NULL DEFAULT 'en',
 		novel_type VARCHAR(50) NOT NULL DEFAULT 'web_novel',
 		year INT DEFAULT 0,
 		rating DECIMAL(3,2) DEFAULT 0.00,
@@ -62,6 +85,10 @@ func runInlineMigrations(db *sqlx.DB) {
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	);
+
+	ALTER TABLE novels ADD COLUMN IF NOT EXISTS language VARCHAR(20) NOT NULL DEFAULT 'en';
+	ALTER TABLE novels ADD COLUMN IF NOT EXISTS author_id UUID;
+	ALTER TABLE novels ADD COLUMN IF NOT EXISTS follower_count INT DEFAULT 0;
 
 	CREATE TABLE IF NOT EXISTS genres (
 		id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -90,6 +117,10 @@ func runInlineMigrations(db *sqlx.DB) {
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		UNIQUE(novel_id, chapter_number)
 	);
+
+	ALTER TABLE chapters ADD COLUMN IF NOT EXISTS content_md TEXT DEFAULT '';
+	ALTER TABLE chapters ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'published';
+	ALTER TABLE chapters ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ DEFAULT NULL;
 
 	CREATE TABLE IF NOT EXISTS users (
 		id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -235,6 +266,14 @@ func runInlineMigrations(db *sqlx.DB) {
 	-- Key indexes
 	CREATE INDEX IF NOT EXISTS idx_novels_slug ON novels(slug);
 	CREATE INDEX IF NOT EXISTS idx_novels_status ON novels(status);
+	DO $$ BEGIN
+		IF EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_name = 'novels' AND column_name = 'language'
+		) THEN
+			CREATE INDEX IF NOT EXISTS idx_novels_language ON novels(language);
+		END IF;
+	END $$;
 	CREATE INDEX IF NOT EXISTS idx_novels_views ON novels(views DESC);
 	CREATE INDEX IF NOT EXISTS idx_novels_updated ON novels(updated_at DESC);
 	-- Create index on novels.author_id only if the column exists

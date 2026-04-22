@@ -5,6 +5,8 @@ import { ThemeProvider } from '@/components/ThemeProvider';
 import { AuthProvider } from '@/components/AuthProvider';
 import { BottomNav } from '@/components/BottomNav';
 import { Header } from '@/components/Header';
+import { ToastProvider } from '@/components/Toast';
+import { ConfirmProvider } from '@/components/ConfirmDialog';
 
 export const metadata: Metadata = {
   title: {
@@ -45,11 +47,15 @@ export default function RootLayout({
       <body className="font-sans min-h-screen flex flex-col">
         <ThemeProvider>
           <AuthProvider>
-            <Header />
-            <main className="flex-1 pb-16 md:pb-0">
-              {children}
-            </main>
-            <BottomNav />
+            <ToastProvider>
+              <ConfirmProvider>
+                <Header />
+                <main className="flex-1 pb-16 md:pb-0">
+                  {children}
+                </main>
+                <BottomNav />
+              </ConfirmProvider>
+            </ToastProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

@@ -6,6 +6,8 @@ import { api } from '@/lib/api';
 import type { Comment } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { useToast } from '@/components/Toast';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 interface CommentSectionProps {
   chapterId: string;
@@ -82,6 +84,8 @@ export function CommentSection({ chapterId }: CommentSectionProps) {
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   const loadComments = useCallback(async () => {
     try {
@@ -115,12 +119,13 @@ export function CommentSection({ chapterId }: CommentSectionProps) {
   };
 
   const handleDelete = async (commentId: string) => {
-    if (!confirm('Delete this comment?')) return;
+    const ok = await confirm({ message: 'Delete this comment?', confirmLabel: 'Delete', danger: true });
+    if (!ok) return;
     try {
       await api.deleteComment(commentId);
       setComments((prev) => prev.filter((c) => c.id !== commentId));
-    } catch {
-      // silently ignore
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Failed to delete comment', 'error');
     }
   };
 

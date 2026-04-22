@@ -7,6 +7,8 @@ import { useAuth } from '@/components/AuthProvider';
 import { api } from '@/lib/api';
 import type { ChapterListItem, Genre, NovelWithGenres, NovelLanguage } from '@/lib/types';
 import { getLanguageLabel } from '@/lib/utils';
+import { useToast } from '@/components/Toast';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 export default function ManageNovelPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +21,8 @@ export default function ManageNovelPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const { toast } = useToast();
+  const { confirm } = useConfirm();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -90,12 +94,14 @@ export default function ManageNovelPage() {
   };
 
   const handleDelete = async (chapterId: string) => {
-    if (!confirm('Are you sure you want to delete this chapter?')) return;
+    const ok = await confirm({ message: 'Are you sure you want to delete this chapter?', confirmLabel: 'Delete', danger: true });
+    if (!ok) return;
     try {
       await api.deleteChapter(chapterId);
       setChapters((prev) => prev.filter((c) => c.id !== chapterId));
+      toast('Chapter deleted', 'success');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete');
+      toast(err instanceof Error ? err.message : 'Failed to delete', 'error');
     }
   };
 

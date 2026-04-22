@@ -105,7 +105,7 @@ export default function LibraryPage() {
               >
                 <div className="relative aspect-[3/4] bg-[var(--bg-secondary)] overflow-hidden">
                   {novel.cover_url ? (
-                    <Image src={novel.cover_url} alt={novel.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" unoptimized sizes="20vw" />
+                    <Image src={novel.cover_url} alt={novel.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="20vw" />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center text-3xl opacity-40">📖</div>
                   )}

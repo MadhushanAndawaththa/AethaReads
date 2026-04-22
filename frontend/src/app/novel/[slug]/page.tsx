@@ -93,7 +93,6 @@ export default async function NovelPage({ params }: NovelPageProps) {
                     fill
                     sizes="160px"
                     className="object-cover"
-                    unoptimized
                   />
                 </div>
               ) : (

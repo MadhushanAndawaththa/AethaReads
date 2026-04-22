@@ -23,7 +23,6 @@ export function NovelCard({ novel, showRating = true }: NovelCardProps) {
             fill
             sizes="(max-width: 480px) 50vw, (max-width: 640px) 33vw, (max-width: 768px) 25vw, (max-width: 1024px) 20vw, 16vw"
             className="object-cover group-hover:scale-105 transition-transform duration-300"
-            unoptimized
           />
         ) : (
           <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br ${novel.language === 'en' ? 'from-purple-900/30 to-purple-700/20' : 'from-brand-900/30 to-brand-700/20'}`}>

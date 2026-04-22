@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { api } from '@/lib/api';
 import type { Chapter } from '@/lib/types';
+
+const AUTOSAVE_DELAY_MS = 30_000;
 
 export default function EditChapterPage() {
   const { id: chapterId } = useParams<{ id: string }>();
@@ -20,6 +22,10 @@ export default function EditChapterPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedRef = useRef({ title: '', content: '' });
 
   useEffect(() => {
     if (!authLoading && !user) router.replace('/auth/login');
@@ -43,6 +49,43 @@ export default function EditChapterPage() {
     if (!authLoading && user) loadChapter();
   }, [user, authLoading, loadChapter]);
 
+  // Autosave: debounce content/title changes for draft chapters
+  const performAutoSave = useCallback(
+    async (currentTitle: string, currentContent: string) => {
+      const nothingChanged =
+        currentTitle === lastSavedRef.current.title &&
+        currentContent === lastSavedRef.current.content;
+      if (nothingChanged || !currentTitle.trim() || !currentContent.trim()) return;
+      setAutoSaveStatus('saving');
+      try {
+        await api.updateChapter(chapterId, {
+          title: currentTitle.trim(),
+          content_md: currentContent,
+          status: 'draft',
+        });
+        lastSavedRef.current = { title: currentTitle, content: currentContent };
+        setAutoSaveStatus('saved');
+        setTimeout(() => setAutoSaveStatus('idle'), 3000);
+      } catch {
+        setAutoSaveStatus('error');
+        setTimeout(() => setAutoSaveStatus('idle'), 4000);
+      }
+    },
+    [chapterId],
+  );
+
+  useEffect(() => {
+    if (status !== 'draft') return; // never autosave when publishing
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(
+      () => performAutoSave(title, content),
+      AUTOSAVE_DELAY_MS,
+    );
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, [title, content, status, performAutoSave]);
+
   const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,6 +102,7 @@ export default function EditChapterPage() {
         content_md: content,
         status,
       });
+      lastSavedRef.current = { title, content };
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err: unknown) {
@@ -107,6 +151,26 @@ export default function EditChapterPage() {
             </svg>
             Saved!
           </span>
+        )}
+        {!saved && autoSaveStatus === 'saving' && (
+          <span className="text-sm text-[var(--text-muted)] flex items-center gap-1">
+            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Auto-saving…
+          </span>
+        )}
+        {!saved && autoSaveStatus === 'saved' && (
+          <span className="text-sm text-green-400/80 flex items-center gap-1">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Auto-saved
+          </span>
+        )}
+        {!saved && autoSaveStatus === 'error' && (
+          <span className="text-sm text-yellow-400/80">Auto-save failed</span>
         )}
       </div>
 

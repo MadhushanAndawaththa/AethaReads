@@ -4,6 +4,16 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@300;400;700&family=Noto+Sans+Sinhala:wght@400;500;600;700&display=swap');
 
+@layer utilities {
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-slide-up {
+    animation: slide-up 0.2s ease-out both;
+  }
+}
+
 @layer base {
   :root {
     --bg-primary: #ffffff;

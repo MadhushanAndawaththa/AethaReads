@@ -1,15 +1,32 @@
-'use client';
-
-import { useEffect, useState } from 'react';
+import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { api } from '@/lib/api';
+import { notFound } from 'next/navigation';
 import type { Novel, UserProfile } from '@/lib/types';
 import { NovelCard } from '@/components/NovelCard';
-import { formatDate } from '@/lib/utils';
+import { formatDate, SITE_NAME } from '@/lib/utils';
 
-function parseSocialLinks(raw: string | undefined) {
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
+interface UserProfileResponse {
+  user: UserProfile;
+  novels: Novel[];
+}
+
+async function fetchProfile(username: string): Promise<UserProfileResponse | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/users/${username}`, {
+      next: { revalidate: 300 },
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error('Failed to fetch profile');
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+function parseSocialLinks(raw: string | undefined): Record<string, string> {
   try {
     return JSON.parse(raw || '{}') as Record<string, string>;
   } catch {
@@ -17,56 +34,49 @@ function parseSocialLinks(raw: string | undefined) {
   }
 }
 
-export default function UserProfilePage() {
-  const params = useParams();
-  const username = params.username as string;
-
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [novels, setNovels] = useState<Novel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-
-  useEffect(() => {
-    if (!username) return;
-    api.getUserProfile(username)
-      .then((res) => {
-        setProfile(res.user);
-        setNovels(res.novels || []);
-      })
-      .catch(() => setNotFound(true))
-      .finally(() => setLoading(false));
-  }, [username]);
-
-  if (loading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-12 animate-pulse">
-        <div className="flex items-center gap-5 mb-8">
-          <div className="w-20 h-20 rounded-2xl bg-[var(--bg-secondary)]" />
-          <div className="space-y-2 flex-1">
-            <div className="h-6 bg-[var(--bg-secondary)] rounded w-48" />
-            <div className="h-4 bg-[var(--bg-secondary)] rounded w-32" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (notFound || !profile) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-20 text-center">
-        <div className="text-5xl mb-4">👤</div>
-        <h1 className="text-2xl font-bold mb-2">User not found</h1>
-        <p className="text-[var(--text-muted)] mb-6">This user doesn&apos;t exist or has been removed.</p>
-        <Link href="/" className="btn-primary text-sm inline-flex">Go Home</Link>
-      </div>
-    );
-  }
-
-  const roleLabel: Record<string, string> = {
-    admin: 'Admin',
-    author: 'Author',
-    reader: 'Reader',
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ username: string }>;
+}): Promise<Metadata> {
+  const { username } = await params;
+  const data = await fetchProfile(username);
+  if (!data) return { title: 'User not found' };
+  const { user } = data;
+  const title = `${user.display_name} (@${user.username}) | ${SITE_NAME}`;
+  const description = user.bio
+    ? user.bio.slice(0, 155)
+    : `Read novels by ${user.display_name} on ${SITE_NAME}.`;
+  return {
+    title,
+    description,
+    openGraph: {
+      type: 'profile',
+      title,
+      description,
+      ...(user.avatar_url ? { images: [{ url: user.avatar_url, width: 200, height: 200 }] } : {}),
+    },
+    twitter: {
+      card: 'summary',
+      title,
+      description,
+      ...(user.avatar_url ? { images: [user.avatar_url] } : {}),
+    },
   };
+}
+
+export default async function UserProfilePage({
+  params,
+}: {
+  params: Promise<{ username: string }>;
+}) {
+  const { username } = await params;
+  const data = await fetchProfile(username);
+  if (!data) notFound();
+
+  const { user: profile, novels } = data;
+
+  const roleLabel: Record<string, string> = { admin: 'Admin', author: 'Author', reader: 'Reader' };
   const roleColor: Record<string, string> = {
     admin: 'text-red-400 bg-red-400/10 border-red-400/20',
     author: 'text-brand-400 bg-brand-400/10 border-brand-400/20',
@@ -75,7 +85,7 @@ export default function UserProfilePage() {
 
   const initials = profile.display_name
     .split(' ')
-    .map((w) => w[0])
+    .map((w: string) => w[0])
     .join('')
     .toUpperCase()
     .slice(0, 2);
@@ -85,14 +95,16 @@ export default function UserProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
-      {/* Profile Header */}
       <div className="card overflow-hidden">
-        <div className="h-28 md:h-36" style={{ background: `linear-gradient(135deg, ${brandColor}, rgba(76, 110, 245, 0.12))` }} />
+        <div
+          className="h-28 md:h-36"
+          style={{ background: `linear-gradient(135deg, ${brandColor}, rgba(76, 110, 245, 0.12))` }}
+        />
         <div className="p-6 pt-0">
           <div className="flex flex-col gap-5 md:flex-row md:items-start">
             <div className="relative -mt-10 w-20 h-20 rounded-2xl overflow-hidden bg-brand-500/10 flex items-center justify-center shrink-0 border-4 border-[var(--bg-card)]">
               {profile.avatar_url ? (
-                <Image src={profile.avatar_url} alt={profile.display_name} fill className="object-cover" unoptimized sizes="80px" />
+                <Image src={profile.avatar_url} alt={profile.display_name} fill sizes="80px" className="object-cover" />
               ) : (
                 <span className="text-2xl font-bold text-brand-500">{initials}</span>
               )}
@@ -106,7 +118,9 @@ export default function UserProfilePage() {
                 </span>
               </div>
               <p className="text-sm text-[var(--text-muted)] mb-2">@{profile.username}</p>
-              {profile.bio && <p className="text-sm text-[var(--text-secondary)] mb-3 max-w-2xl leading-relaxed">{profile.bio}</p>}
+              {profile.bio && (
+                <p className="text-sm text-[var(--text-secondary)] mb-3 max-w-2xl leading-relaxed">{profile.bio}</p>
+              )}
 
               <div className="flex flex-wrap gap-3 text-xs text-[var(--text-muted)] mb-3">
                 <span>Joined {formatDate(profile.created_at)}</span>
@@ -116,24 +130,16 @@ export default function UserProfilePage() {
 
               <div className="flex flex-wrap gap-2">
                 {profile.author_profile?.website_url && (
-                  <a href={profile.author_profile.website_url} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-brand-500/40 transition">
-                    Website
-                  </a>
+                  <a href={profile.author_profile.website_url} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-brand-500/40 transition">Website</a>
                 )}
                 {socialLinks.facebook && (
-                  <a href={socialLinks.facebook} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-brand-500/40 transition">
-                    Facebook
-                  </a>
+                  <a href={socialLinks.facebook} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-brand-500/40 transition">Facebook</a>
                 )}
                 {socialLinks.discord && (
-                  <a href={socialLinks.discord} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-brand-500/40 transition">
-                    Discord
-                  </a>
+                  <a href={socialLinks.discord} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-brand-500/40 transition">Discord</a>
                 )}
                 {socialLinks.patreon && (
-                  <a href={socialLinks.patreon} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-brand-500/40 transition">
-                    Support
-                  </a>
+                  <a href={socialLinks.patreon} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-full border border-[var(--border-color)] bg-[var(--bg-secondary)] hover:border-brand-500/40 transition">Support</a>
                 )}
               </div>
             </div>
@@ -141,7 +147,6 @@ export default function UserProfilePage() {
         </div>
       </div>
 
-      {/* Authored Novels */}
       {novels.length > 0 && (
         <section>
           <h2 className="text-lg font-semibold mb-4">

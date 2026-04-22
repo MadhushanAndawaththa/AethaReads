@@ -1,6 +1,7 @@
 package router
 
 import (
+	"fmt"
 	"time"
 
 	"aetha-backend/internal/handlers"
@@ -21,6 +22,74 @@ type Handlers struct {
 	Community *handlers.CommunityHandler
 }
 
+func newScopedLimiter(scope string, max int, expiration time.Duration, keyFn func(*fiber.Ctx) string) fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:               max,
+		Expiration:        expiration,
+		LimiterMiddleware: limiter.SlidingWindow{},
+		KeyGenerator:      keyFn,
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(429).JSON(fiber.Map{
+				"error": fmt.Sprintf("Too many %s requests. Please slow down.", scope),
+			})
+		},
+	})
+}
+
+func routeKey(c *fiber.Ctx, actor string) string {
+	routePath := c.Path()
+	if route := c.Route(); route != nil && route.Path != "" {
+		routePath = route.Path
+	}
+	return fmt.Sprintf("%s:%s:%s", c.Method(), routePath, actor)
+}
+
+func apiLimiter() fiber.Handler {
+	return newScopedLimiter("API", 300, time.Minute, func(c *fiber.Ctx) string {
+		return routeKey(c, "ip:"+c.IP())
+	})
+}
+
+func authWriteLimiter() fiber.Handler {
+	return newScopedLimiter("auth", 10, 5*time.Minute, func(c *fiber.Ctx) string {
+		return routeKey(c, "ip:"+c.IP())
+	})
+}
+
+func communityWriteLimiter() fiber.Handler {
+	return newScopedLimiter("community", 20, time.Minute, func(c *fiber.Ctx) string {
+		actor := middleware.GetUserID(c)
+		if actor == "" {
+			actor = "ip:" + c.IP()
+		} else {
+			actor = "user:" + actor
+		}
+		return routeKey(c, actor)
+	})
+}
+
+func progressWriteLimiter() fiber.Handler {
+	return newScopedLimiter("progress", 120, time.Minute, func(c *fiber.Ctx) string {
+		actor := middleware.GetUserID(c)
+		if actor == "" {
+			actor = "ip:" + c.IP()
+		} else {
+			actor = "user:" + actor
+		}
+		return routeKey(c, actor)
+	})
+}
+
+func securityHeaders() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		c.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+		c.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Set("X-Content-Type-Options", "nosniff")
+		c.Set("X-Frame-Options", "DENY")
+		return c.Next()
+	}
+}
+
 func Setup(app *fiber.App, h *Handlers, allowedOrigins, jwtSecret string) {
 	// Global middleware
 	app.Use(recover.New())
@@ -36,19 +105,8 @@ func Setup(app *fiber.App, h *Handlers, allowedOrigins, jwtSecret string) {
 	app.Use(compress.New(compress.Config{
 		Level: compress.LevelBestSpeed,
 	}))
-	app.Use(limiter.New(limiter.Config{
-		Max:               100,
-		Expiration:        1 * time.Minute,
-		LimiterMiddleware: limiter.SlidingWindow{},
-		KeyGenerator: func(c *fiber.Ctx) string {
-			return c.IP()
-		},
-		LimitReached: func(c *fiber.Ctx) error {
-			return c.Status(429).JSON(fiber.Map{
-				"error": "Too many requests. Please slow down.",
-			})
-		},
-	}))
+	app.Use(securityHeaders())
+	app.Use(apiLimiter())
 
 	// API routes
 	api := app.Group("/api")
@@ -64,12 +122,12 @@ func Setup(app *fiber.App, h *Handlers, allowedOrigins, jwtSecret string) {
 
 		// ── Auth routes ────────────────
 		auth := api.Group("/auth")
-		auth.Post("/register", h.Auth.Register)
-		auth.Post("/login", h.Auth.Login)
+		auth.Post("/register", authWriteLimiter(), h.Auth.Register)
+		auth.Post("/login", authWriteLimiter(), h.Auth.Login)
 		auth.Get("/google", h.Auth.GoogleRedirect)
 		auth.Get("/google/callback", h.Auth.GoogleCallback)
-		auth.Post("/refresh", h.Auth.Refresh)
-		auth.Post("/logout", middleware.RequireAuth(jwtSecret), h.Auth.Logout)
+		auth.Post("/refresh", authWriteLimiter(), h.Auth.Refresh)
+		auth.Post("/logout", authWriteLimiter(), middleware.RequireAuth(jwtSecret), h.Auth.Logout)
 		auth.Get("/me", middleware.RequireAuth(jwtSecret), h.Auth.GetMe)
 
 		// ── Author routes (auth required) ────────────────
@@ -94,31 +152,31 @@ func Setup(app *fiber.App, h *Handlers, allowedOrigins, jwtSecret string) {
 		// ── Community routes ────────────────
 		// Comments (public read, auth write)
 		api.Get("/chapters/:id/comments", h.Community.GetComments)
-		api.Post("/chapters/:id/comments", middleware.RequireAuth(jwtSecret), h.Community.CreateComment)
-		api.Delete("/comments/:id", middleware.RequireAuth(jwtSecret), h.Community.DeleteComment)
+		api.Post("/chapters/:id/comments", middleware.RequireAuth(jwtSecret), communityWriteLimiter(), h.Community.CreateComment)
+		api.Delete("/comments/:id", middleware.RequireAuth(jwtSecret), communityWriteLimiter(), h.Community.DeleteComment)
 
 		// Reviews (public read, auth write)
 		api.Get("/novels/:slug/reviews", h.Community.GetReviews)
-		api.Post("/novels/:slug/reviews", middleware.RequireAuth(jwtSecret), h.Community.CreateReview)
-		api.Post("/reviews/:id/vote", middleware.RequireAuth(jwtSecret), h.Community.VoteReview)
+		api.Post("/novels/:slug/reviews", middleware.RequireAuth(jwtSecret), communityWriteLimiter(), h.Community.CreateReview)
+		api.Post("/reviews/:id/vote", middleware.RequireAuth(jwtSecret), communityWriteLimiter(), h.Community.VoteReview)
 
 		// Follows
-		api.Post("/novels/:slug/follow", middleware.RequireAuth(jwtSecret), h.Community.FollowNovel)
-		api.Delete("/novels/:slug/follow", middleware.RequireAuth(jwtSecret), h.Community.UnfollowNovel)
+		api.Post("/novels/:slug/follow", middleware.RequireAuth(jwtSecret), communityWriteLimiter(), h.Community.FollowNovel)
+		api.Delete("/novels/:slug/follow", middleware.RequireAuth(jwtSecret), communityWriteLimiter(), h.Community.UnfollowNovel)
 		api.Get("/novels/:slug/following", middleware.RequireAuth(jwtSecret), h.Community.CheckFollowing)
 
 		// Reading progress
-		api.Put("/novels/:slug/progress", middleware.RequireAuth(jwtSecret), h.Community.UpdateProgress)
+		api.Put("/novels/:slug/progress", middleware.RequireAuth(jwtSecret), progressWriteLimiter(), h.Community.UpdateProgress)
 		api.Get("/novels/:slug/progress", middleware.RequireAuth(jwtSecret), h.Community.GetProgress)
 
 		// ── User routes (auth required) ────────────────
 		user := api.Group("/user", middleware.RequireAuth(jwtSecret))
 		user.Get("/follows", h.Community.GetFollowedNovels)
 		user.Get("/notifications", h.Community.GetNotifications)
-		user.Post("/notifications/read", h.Community.MarkNotificationsRead)
+		user.Post("/notifications/read", communityWriteLimiter(), h.Community.MarkNotificationsRead)
 		user.Get("/progress", h.Community.GetAllProgress)
 		user.Get("/profile", h.Author.GetMyProfile)
-		user.Put("/profile", h.Author.UpdateMyProfile)
+		user.Put("/profile", communityWriteLimiter(), h.Author.UpdateMyProfile)
 
 		// ── Public user profiles ────────────────
 		api.Get("/users/:username", h.Author.GetUserProfile)

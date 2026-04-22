@@ -1,5 +1,23 @@
 # AethaReads V3 Roadmap
 
+## Audit Snapshot - April 2026
+
+This roadmap has been rechecked against the current codebase so the plan reflects shipped work rather than stale assumptions.
+
+### Verified As Shipped
+
+- [x] **HTML sanitization (DOMPurify)** is live in the reader and translation flow, with unit coverage for unsafe markup stripping.
+- [x] **Auto token refresh** is implemented in `clientFetcher` with refresh deduplication and unit tests.
+- [x] **Language metadata on novels** is implemented end-to-end: database migration, backend filtering, cache keys, browse filters, and author create/edit flows.
+- [x] **Structured data (JSON-LD)** is implemented on novel and chapter pages.
+- [x] **Google OAuth** is implemented, but the broader multi-provider roadmap item remains open.
+
+### Partially Shipped But Still Open
+
+- **Rate limiting** exists as a global sliding-window IP limiter, but endpoint-specific abuse protection for auth and community actions still needs stronger production rules.
+- **Creator Studio** now has a dashboard shell, overview workspace, public author profile improvements, and profile settings, so older V4 notes that describe those areas as missing are outdated.
+- **Regression coverage** now exists for auth refresh behavior, sanitization, reader translation, and the author language flow, but profile and community coverage are still incomplete.
+
 ## V2.5 — Bug Fixes & UX Polish (Current Session)
 
 ### Issues Fixed
@@ -37,13 +55,13 @@
 ### Phase 1: Core Platform Improvements
 
 #### 1.1 Content Security
-- [ ] **HTML sanitization (DOMPurify)**: Sanitize chapter content client-side with DOMPurify before rendering via `dangerouslySetInnerHTML`. Defense-in-depth against XSS.
+- [x] **HTML sanitization (DOMPurify)**: Sanitize chapter content client-side with DOMPurify before rendering via `dangerouslySetInnerHTML`. Defense-in-depth against XSS.
 - [ ] **Rate limiting**: Add rate limiting on auth, comment, review, and follow endpoints to prevent abuse.
 - [ ] **CSRF protection**: Add CSRF tokens for state-changing operations.
 - [ ] **Content Security Policy**: Implement CSP headers to prevent script injection.
 
 #### 1.2 Authentication & Session Management
-- [ ] **Auto token refresh**: Implement 401 interceptor in `clientFetcher` that automatically calls `api.refresh()` and retries the failed request.
+- [x] **Auto token refresh**: Implement 401 interceptor in `clientFetcher` that automatically calls `api.refresh()` and retries the failed request.
 - [ ] **OAuth providers**: Google, Discord, and Facebook login for frictionless onboarding.
 - [ ] **Email verification**: Require email verification on registration.
 - [ ] **Password reset flow**: Forgot password → email → reset page.
@@ -72,7 +90,7 @@
 
 #### 2.3 Sinhala Content Creation
 - [ ] **Sinhala-optimized editor**: Add Sinhala keyboard input support and Unicode text editor for authors writing in Sinhala.
-- [ ] **Language metadata on novels**: Add `language` field to novels (en, si, bilingual) for filtering and search.
+- [x] **Language metadata on novels**: Add `language` field to novels (en, si, bilingual) for filtering and search.
 - [ ] **Bilingual chapter support**: Allow authors to publish chapters in both languages side-by-side.
 
 ### Phase 3: Community & Engagement
@@ -131,7 +149,7 @@
 
 #### 5.3 SEO & Discovery
 - [ ] **Server-side rendering for user profiles**: Convert user profile page from client-side to SSR with `generateMetadata`.
-- [ ] **Structured data (JSON-LD)**: Add Book/CreativeWork schema for novel pages.
+- [x] **Structured data (JSON-LD)**: Add Book/CreativeWork schema for novel pages.
 - [ ] **Sitemap generation**: Auto-generate sitemap.xml for all novels and chapters.
 - [ ] **Open Graph images**: Dynamic OG images for novel pages with cover art.
 
@@ -177,13 +195,13 @@ V4 should not be treated as started until every unchecked V3 item above and ever
 
 ### Already Partially Present But Not Fully Complete
 
-- **Language metadata** exists in the novel model and author create flow, but it still needs stronger filtering, editing UX, validation, and discoverability across browse, search, and author tooling.
-- **401 refresh retry** already exists in `clientFetcher`, but the roadmap item is only complete when auth refresh is verified across all protected flows, error states are clean, and expired-session UX is predictable.
+- **Global rate limiting** exists, but the roadmap item is not complete until auth, comment, review, and follow abuse controls are tuned per endpoint and backed by operational visibility.
 - **Reader translation** is working as a UX feature, but production translation, caching, and language detection remain separate roadmap items.
+- **Creator Studio foundations** are now present, but the broader author workspace still needs deeper chapter operations, scheduling, analytics, and publishing reliability.
 
 ### Required Finish Order
 
-1. **Security and auth hardening**: DOMPurify, rate limiting, CSRF, stable refresh behavior, and proper error-state handling.
+1. **Security and auth hardening**: endpoint-specific rate limiting, CSRF, CSP, and proper error-state handling.
 2. **Platform quality**: Image optimization, skeletons/Suspense, accessibility fixes, keyboard navigation, and removal of temporary hacks.
 3. **Content model completion**: Language metadata, production-grade translation flow, and a clean genre/tag taxonomy.
 4. **Author reliability**: Autosave, better draft handling, safer chapter publishing, and dashboard usability fixes.
@@ -206,11 +224,11 @@ Make AethaReads feel like a focused, bilingual web novel platform with a profess
 
 ### Current Gaps Observed In The App
 
-- **Dashboard** is still a flat page with top stats and a basic novel list, not a real author workspace.
+- **Dashboard** now has a proper shell and overview, but it still needs deeper sections for chapters, schedule, analytics, and reader management.
 - **Chapter management** supports create/edit/delete, but lacks bulk actions, scheduling, ordering tools, and editorial visibility.
 - **Genres** exist, but there is no separate lightweight tag system for tropes, themes, warnings, or discoverability.
-- **Profiles** are minimal and do not yet showcase author credibility, release cadence, featured works, or reader identity.
-- **Navigation** inside author tools is page-to-page rather than a cohesive side-nav dashboard.
+- **Profiles** now support author branding and social links, but they still lack richer trust signals, featured works, announcements, and reader identity.
+- **Navigation** inside author tools is now cohesive, but it is still narrow and missing workspace areas such as schedule, analytics, readers, and settings.
 
 ### Phase 0: Finish V3 Properly
 

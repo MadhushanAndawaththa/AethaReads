@@ -14,6 +14,7 @@ type Config struct {
 	Server ServerConfig
 	Cache  CacheConfig
 	Auth   AuthConfig
+	Email  EmailConfig
 }
 
 type DBConfig struct {
@@ -51,6 +52,16 @@ type AuthConfig struct {
 	GoogleRedirectURL  string
 	CookieDomain       string
 	CookieSecure       bool
+	FrontendURL        string
+}
+
+type EmailConfig struct {
+	Host     string
+	Port     string
+	Username string
+	Password string
+	From     string
+	UseTLS   bool
 }
 
 func Load() *Config {
@@ -97,6 +108,15 @@ func Load() *Config {
 			GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/api/auth/google/callback"),
 			CookieDomain:       getEnv("COOKIE_DOMAIN", ""),
 			CookieSecure:       cookieSecure,
+			FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3001"),
+		},
+		Email: EmailConfig{
+			Host:     getEnv("SMTP_HOST", ""),
+			Port:     getEnv("SMTP_PORT", "587"),
+			Username: getEnv("SMTP_USERNAME", ""),
+			Password: getEnv("SMTP_PASSWORD", ""),
+			From:     getEnv("SMTP_FROM", "noreply@aethareads.com"),
+			UseTLS:   getEnv("SMTP_USE_TLS", "false") == "true",
 		},
 	}
 }

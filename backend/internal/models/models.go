@@ -211,6 +211,15 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type ForgotPasswordRequest struct {
+	Email string `json:"email"`
+}
+
+type ResetPasswordRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
 type CreateNovelRequest struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
@@ -299,7 +308,8 @@ type ChapterReadResponse struct {
 
 type AuthResponse struct {
 	User        UserPublic `json:"user"`
-	AccessToken string     `json:"access_token"`
+	AccessToken string     `json:"access_token,omitempty"`
+	CSRFToken   string     `json:"csrf_token,omitempty"`
 }
 
 type ErrorResponse struct {

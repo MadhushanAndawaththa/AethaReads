@@ -1,6 +1,10 @@
 package handlers
 
 import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,20 +15,26 @@ import (
 	"time"
 
 	"aetha-backend/internal/config"
+	"aetha-backend/internal/email"
 	"aetha-backend/internal/middleware"
 	"aetha-backend/internal/models"
 	"aetha-backend/internal/repository"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/redis/go-redis/v9"
 )
+
+const pwResetTTL = 15 * time.Minute
 
 type AuthHandler struct {
 	userRepo *repository.UserRepository
 	cfg      *config.AuthConfig
+	rdb      *redis.Client
+	emailSvc *email.Service
 }
 
-func NewAuthHandler(ur *repository.UserRepository, cfg *config.AuthConfig) *AuthHandler {
-	return &AuthHandler{userRepo: ur, cfg: cfg}
+func NewAuthHandler(ur *repository.UserRepository, cfg *config.AuthConfig, rdb *redis.Client, emailSvc *email.Service) *AuthHandler {
+	return &AuthHandler{userRepo: ur, cfg: cfg, rdb: rdb, emailSvc: emailSvc}
 }
 
 // POST /api/auth/register
@@ -73,16 +83,24 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	}
 
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	ip := c.IP()
+
+	if !middleware.CheckLoginAllowed(c.Context(), h.rdb, req.Email, ip) {
+		return c.Status(429).JSON(models.ErrorResponse{Error: "Too many failed login attempts. Please try again in 15 minutes."})
+	}
 
 	user, err := h.userRepo.GetByEmail(c.Context(), req.Email)
 	if err != nil {
+		middleware.RecordFailedLogin(c.Context(), h.rdb, req.Email, ip)
 		return c.Status(401).JSON(models.ErrorResponse{Error: "Invalid email or password"})
 	}
 
 	if !h.userRepo.CheckPassword(user, req.Password) {
+		middleware.RecordFailedLogin(c.Context(), h.rdb, req.Email, ip)
 		return c.Status(401).JSON(models.ErrorResponse{Error: "Invalid email or password"})
 	}
 
+	middleware.ClearLoginAttempts(c.Context(), h.rdb, req.Email, ip)
 	return h.issueTokens(c, user)
 }
 
@@ -224,8 +242,61 @@ func (h *AuthHandler) GetMe(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(models.AuthResponse{
-		User: toPublicUser(user),
+		User:      toPublicUser(user),
+		CSRFToken: middleware.GenerateCSRFToken(user.ID, h.cfg.JWTSecret),
 	})
+}
+
+// POST /api/auth/forgot-password
+func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
+	var req models.ForgotPasswordRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Invalid request body"})
+	}
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	if req.Email == "" {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Email is required"})
+	}
+
+	// Always respond with the same message to prevent email enumeration
+	user, err := h.userRepo.GetByEmail(c.Context(), req.Email)
+	if err == nil && user.PasswordHash != nil {
+		token, err := h.createPasswordResetToken(c.Context(), user.ID)
+		if err == nil {
+			go h.sendPasswordResetEmail(user.Email, user.DisplayName, token)
+		}
+	}
+
+	return c.JSON(fiber.Map{"message": "If this email is registered, a password reset link has been sent."})
+}
+
+// POST /api/auth/reset-password
+func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
+	var req models.ResetPasswordRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Invalid request body"})
+	}
+	if req.Token == "" || req.Password == "" {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Token and password are required"})
+	}
+	if len(req.Password) < 8 {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Password must be at least 8 characters"})
+	}
+
+	userID, err := h.consumePasswordResetToken(c.Context(), req.Token)
+	if err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Invalid or expired reset token"})
+	}
+
+	if err := h.userRepo.UpdatePassword(c.Context(), userID, req.Password); err != nil {
+		log.Printf("reset password error: %v", err)
+		return c.Status(500).JSON(models.ErrorResponse{Error: "Failed to update password"})
+	}
+
+	// Revoke all sessions for security
+	_ = h.userRepo.RevokeAllRefreshTokens(c.Context(), userID)
+
+	return c.JSON(fiber.Map{"message": "Password updated successfully. Please log in with your new password."})
 }
 
 // ===================== Internal helpers =====================
@@ -236,10 +307,12 @@ func (h *AuthHandler) issueTokens(c *fiber.Ctx, user *models.User) error {
 	}
 
 	accessToken, _ := middleware.GenerateAccessToken(user, h.cfg)
+	csrfToken := middleware.GenerateCSRFToken(user.ID, h.cfg.JWTSecret)
 
 	return c.JSON(models.AuthResponse{
 		User:        toPublicUser(user),
 		AccessToken: accessToken,
+		CSRFToken:   csrfToken,
 	})
 }
 
@@ -292,5 +365,74 @@ func toPublicUser(u *models.User) models.UserPublic {
 		Role:        u.Role,
 		Bio:         u.Bio,
 		CreatedAt:   u.CreatedAt,
+	}
+}
+
+// ===================== Password reset helpers =====================
+
+func pwResetHashKey(rawToken string) string {
+	h := sha256.Sum256([]byte(rawToken))
+	return "pwreset:" + hex.EncodeToString(h[:])
+}
+
+func pwResetUserKey(userID string) string {
+	return "pwreset:user:" + userID
+}
+
+func (h *AuthHandler) createPasswordResetToken(ctx context.Context, userID string) (string, error) {
+	// Invalidate any previous token for this user
+	if oldHash, err := h.rdb.Get(ctx, pwResetUserKey(userID)).Result(); err == nil {
+		h.rdb.Del(ctx, "pwreset:"+oldHash) //nolint:errcheck
+	}
+
+	rawBytes := make([]byte, 32)
+	if _, err := rand.Read(rawBytes); err != nil {
+		return "", err
+	}
+	rawToken := hex.EncodeToString(rawBytes)
+
+	pipe := h.rdb.Pipeline()
+	pipe.Set(ctx, pwResetHashKey(rawToken), userID, pwResetTTL)
+	hashHex := hex.EncodeToString(func() []byte { s := sha256.Sum256([]byte(rawToken)); return s[:] }())
+	pipe.Set(ctx, pwResetUserKey(userID), hashHex, pwResetTTL)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return "", err
+	}
+
+	return rawToken, nil
+}
+
+func (h *AuthHandler) consumePasswordResetToken(ctx context.Context, rawToken string) (string, error) {
+	key := pwResetHashKey(rawToken)
+	userID, err := h.rdb.Get(ctx, key).Result()
+	if err != nil {
+		return "", fmt.Errorf("invalid or expired token")
+	}
+
+	// One-time use: delete both keys atomically
+	pipe := h.rdb.Pipeline()
+	pipe.Del(ctx, key)
+	pipe.Del(ctx, pwResetUserKey(userID))
+	pipe.Exec(ctx) //nolint:errcheck
+
+	return userID, nil
+}
+
+func (h *AuthHandler) sendPasswordResetEmail(to, name, rawToken string) {
+	resetURL := fmt.Sprintf("%s/auth/reset-password?token=%s", h.cfg.FrontendURL, url.QueryEscape(rawToken))
+	subject := "Reset your AethaReads password"
+	body := fmt.Sprintf(`Hi %s,
+
+We received a request to reset the password for your AethaReads account.
+
+Click the link below to set a new password (valid for 15 minutes):
+%s
+
+If you did not request a password reset, you can safely ignore this email.
+
+— The AethaReads Team`, name, resetURL)
+
+	if err := h.emailSvc.Send(to, subject, body); err != nil {
+		log.Printf("failed to send password reset email to %s: %v", to, err)
 	}
 }

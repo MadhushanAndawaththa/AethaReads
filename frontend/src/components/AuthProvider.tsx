@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import type { User } from '@/lib/types';
-import { api } from '@/lib/api';
+import { api, setCsrfToken } from '@/lib/api';
 
 interface AuthContextType {
   user: User | null;
@@ -23,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const data = await api.getMe();
       setUser(data.user);
+      if (data.csrf_token) setCsrfToken(data.csrf_token);
     } catch {
       setUser(null);
     }
@@ -36,11 +37,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     const data = await api.login(email, password);
     setUser(data.user);
+    if (data.csrf_token) setCsrfToken(data.csrf_token);
   };
 
   const register = async (email: string, username: string, password: string) => {
     const data = await api.register(email, username, password);
     setUser(data.user);
+    if (data.csrf_token) setCsrfToken(data.csrf_token);
   };
 
   const logout = async () => {

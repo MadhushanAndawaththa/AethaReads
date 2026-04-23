@@ -65,6 +65,17 @@ func (r *UserRepository) UpdateRole(ctx context.Context, userID, role string) er
 	return err
 }
 
+func (r *UserRepository) UpdatePassword(ctx context.Context, userID, newPassword string) error {
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx,
+		"UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2",
+		string(hash), userID)
+	return err
+}
+
 func (r *UserRepository) UpdateProfile(ctx context.Context, userID string, req *models.UpdateUserProfileRequest) (*models.User, error) {
 	sets := []string{}
 	args := []any{}

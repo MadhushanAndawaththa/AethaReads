@@ -20,6 +20,13 @@ import type {
 // Server-side fetcher: full URL so Next.js server (inside Docker) can reach the backend directly.
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
+// CSRF token stored in memory. Set after every auth response (login/register/refresh/getMe).
+let csrfToken = '';
+
+export function setCsrfToken(token: string) {
+  csrfToken = token;
+}
+
 let refreshPromise: Promise<boolean> | null = null;
 
 async function fetcher<T>(url: string): Promise<T> {
@@ -87,8 +94,9 @@ async function clientFetcher<T>(url: string, options?: RequestInit, retryAuth = 
 }
 
 async function authFetcher<T>(url: string, options?: RequestInit): Promise<T> {
+  const csrfHeaders: Record<string, string> = csrfToken ? { 'X-CSRF-Token': csrfToken } : {};
   return clientFetcher<T>(url, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...csrfHeaders, ...options?.headers },
     ...options,
   });
 }
@@ -146,7 +154,19 @@ export const api = {
     authFetcher<{ message: string }>('/api/auth/logout', { method: 'POST' }),
 
   getMe: () =>
-    authFetcher<{ user: User }>('/api/auth/me'),
+    authFetcher<AuthResponse>('/api/auth/me'),
+
+  forgotPassword: (email: string) =>
+    authFetcher<{ message: string }>('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPassword: (token: string, password: string) =>
+    authFetcher<{ message: string }>('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }),
 
   // ── Author ────────────────
   getMyNovels: () =>

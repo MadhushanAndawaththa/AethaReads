@@ -127,16 +127,18 @@ func Setup(app *fiber.App, h *Handlers, allowedOrigins, jwtSecret string) {
 		auth.Get("/google", h.Auth.GoogleRedirect)
 		auth.Get("/google/callback", h.Auth.GoogleCallback)
 		auth.Post("/refresh", authWriteLimiter(), h.Auth.Refresh)
-		auth.Post("/logout", authWriteLimiter(), middleware.RequireAuth(jwtSecret), h.Auth.Logout)
+		auth.Post("/logout", authWriteLimiter(), middleware.RequireAuth(jwtSecret), middleware.RequireCSRF(jwtSecret), h.Auth.Logout)
 		auth.Get("/me", middleware.RequireAuth(jwtSecret), h.Auth.GetMe)
+		auth.Post("/forgot-password", authWriteLimiter(), h.Auth.ForgotPassword)
+		auth.Post("/reset-password", authWriteLimiter(), h.Auth.ResetPassword)
 
 		// ── Author routes (auth required) ────────────────
 		author := api.Group("/author", middleware.RequireAuth(jwtSecret))
 
 		// Become author — any authenticated user
-		author.Post("/become", h.Author.BecomeAuthor)
+		author.Post("/become", middleware.RequireCSRF(jwtSecret), h.Author.BecomeAuthor)
 
-		authorProtected := author.Group("", middleware.RequireRole("author", "admin"))
+		authorProtected := author.Group("", middleware.RequireRole("author", "admin"), middleware.RequireCSRF(jwtSecret))
 		authorProtected.Get("/novels", h.Author.GetMyNovels)
 		authorProtected.Get("/novels/:id", h.Author.GetMyNovel)
 		authorProtected.Post("/novels", h.Author.CreateNovel)
@@ -152,31 +154,31 @@ func Setup(app *fiber.App, h *Handlers, allowedOrigins, jwtSecret string) {
 		// ── Community routes ────────────────
 		// Comments (public read, auth write)
 		api.Get("/chapters/:id/comments", h.Community.GetComments)
-		api.Post("/chapters/:id/comments", middleware.RequireAuth(jwtSecret), communityWriteLimiter(), h.Community.CreateComment)
-		api.Delete("/comments/:id", middleware.RequireAuth(jwtSecret), communityWriteLimiter(), h.Community.DeleteComment)
+		api.Post("/chapters/:id/comments", middleware.RequireAuth(jwtSecret), middleware.RequireCSRF(jwtSecret), communityWriteLimiter(), h.Community.CreateComment)
+		api.Delete("/comments/:id", middleware.RequireAuth(jwtSecret), middleware.RequireCSRF(jwtSecret), communityWriteLimiter(), h.Community.DeleteComment)
 
 		// Reviews (public read, auth write)
 		api.Get("/novels/:slug/reviews", h.Community.GetReviews)
-		api.Post("/novels/:slug/reviews", middleware.RequireAuth(jwtSecret), communityWriteLimiter(), h.Community.CreateReview)
-		api.Post("/reviews/:id/vote", middleware.RequireAuth(jwtSecret), communityWriteLimiter(), h.Community.VoteReview)
+		api.Post("/novels/:slug/reviews", middleware.RequireAuth(jwtSecret), middleware.RequireCSRF(jwtSecret), communityWriteLimiter(), h.Community.CreateReview)
+		api.Post("/reviews/:id/vote", middleware.RequireAuth(jwtSecret), middleware.RequireCSRF(jwtSecret), communityWriteLimiter(), h.Community.VoteReview)
 
 		// Follows
-		api.Post("/novels/:slug/follow", middleware.RequireAuth(jwtSecret), communityWriteLimiter(), h.Community.FollowNovel)
-		api.Delete("/novels/:slug/follow", middleware.RequireAuth(jwtSecret), communityWriteLimiter(), h.Community.UnfollowNovel)
+		api.Post("/novels/:slug/follow", middleware.RequireAuth(jwtSecret), middleware.RequireCSRF(jwtSecret), communityWriteLimiter(), h.Community.FollowNovel)
+		api.Delete("/novels/:slug/follow", middleware.RequireAuth(jwtSecret), middleware.RequireCSRF(jwtSecret), communityWriteLimiter(), h.Community.UnfollowNovel)
 		api.Get("/novels/:slug/following", middleware.RequireAuth(jwtSecret), h.Community.CheckFollowing)
 
 		// Reading progress
-		api.Put("/novels/:slug/progress", middleware.RequireAuth(jwtSecret), progressWriteLimiter(), h.Community.UpdateProgress)
+		api.Put("/novels/:slug/progress", middleware.RequireAuth(jwtSecret), middleware.RequireCSRF(jwtSecret), progressWriteLimiter(), h.Community.UpdateProgress)
 		api.Get("/novels/:slug/progress", middleware.RequireAuth(jwtSecret), h.Community.GetProgress)
 
 		// ── User routes (auth required) ────────────────
 		user := api.Group("/user", middleware.RequireAuth(jwtSecret))
 		user.Get("/follows", h.Community.GetFollowedNovels)
 		user.Get("/notifications", h.Community.GetNotifications)
-		user.Post("/notifications/read", communityWriteLimiter(), h.Community.MarkNotificationsRead)
+		user.Post("/notifications/read", middleware.RequireCSRF(jwtSecret), communityWriteLimiter(), h.Community.MarkNotificationsRead)
 		user.Get("/progress", h.Community.GetAllProgress)
 		user.Get("/profile", h.Author.GetMyProfile)
-		user.Put("/profile", communityWriteLimiter(), h.Author.UpdateMyProfile)
+		user.Put("/profile", middleware.RequireCSRF(jwtSecret), communityWriteLimiter(), h.Author.UpdateMyProfile)
 
 		// ── Public user profiles ────────────────
 		api.Get("/users/:username", h.Author.GetUserProfile)

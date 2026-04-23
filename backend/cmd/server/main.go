@@ -10,6 +10,7 @@ import (
 	"aetha-backend/internal/cache"
 	"aetha-backend/internal/config"
 	"aetha-backend/internal/database"
+	"aetha-backend/internal/email"
 	"aetha-backend/internal/handlers"
 	"aetha-backend/internal/repository"
 	"aetha-backend/internal/router"
@@ -60,9 +61,10 @@ func main() {
 	})
 
 	// Setup all handlers
+	emailSvc := email.New(cfg.Email.Host, cfg.Email.Port, cfg.Email.Username, cfg.Email.Password, cfg.Email.From, cfg.Email.UseTLS)
 	h := &router.Handlers{
 		Novel:     handlers.NewNovelHandler(novelRepo, chapterRepo, cacheService),
-		Auth:      handlers.NewAuthHandler(userRepo, &cfg.Auth),
+		Auth:      handlers.NewAuthHandler(userRepo, &cfg.Auth, rdb, emailSvc),
 		Author:    handlers.NewAuthorHandler(authorRepo, novelRepo, userRepo, cacheService),
 		Community: handlers.NewCommunityHandler(communityRepo, novelRepo),
 	}

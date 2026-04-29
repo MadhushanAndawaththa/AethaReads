@@ -14,6 +14,8 @@ import type {
   ReadingProgress,
   Chapter,
   ChapterListItem,
+  ChapterBulkAction,
+  BulkChapterActionResponse,
   CurrentProfileResponse,
   Report,
   AuditLog,
@@ -211,6 +213,11 @@ export const api = {
 
   getMyChapters: (novelId: string) =>
     authFetcher<{ data: ChapterListItem[] }>(`/api/author/novels/${novelId}/chapters`),
+
+  bulkChapterAction: (novelId: string, data: { chapter_ids: string[]; action: ChapterBulkAction }) =>
+    authFetcher<BulkChapterActionResponse>(`/api/author/novels/${novelId}/chapters/bulk`, {
+      method: 'POST', body: JSON.stringify(data),
+    }),
 
   createChapter: (novelId: string, data: {
     title: string; content_md: string; status: string; publish_at?: string;

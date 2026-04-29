@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { api } from '@/lib/api';
-import type { ChapterListItem, ContentWarning, Genre, NovelWithGenres, NovelLanguage } from '@/lib/types';
+import type { ChapterBulkAction, ChapterListItem, ContentWarning, Genre, NovelWithGenres, NovelLanguage } from '@/lib/types';
 import { getLanguageLabel } from '@/lib/utils';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
@@ -33,6 +33,7 @@ export default function ManageNovelPage() {
   const [novelType, setNovelType] = useState('web_novel');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [selectedWarnings, setSelectedWarnings] = useState<string[]>([]);
+  const [selectedChapterIds, setSelectedChapterIds] = useState<string[]>([]);
   const [chapterFilter, setChapterFilter] = useState<'all' | 'draft' | 'published' | 'scheduled'>('all');
 
   const loadData = useCallback(async () => {
@@ -44,9 +45,11 @@ export default function ManageNovelPage() {
         api.getContentWarnings(),
       ]);
       setNovel(novelRes.novel);
-      setChapters(chaptersRes.data || []);
+      const chapterData = chaptersRes.data || [];
+      setChapters(chapterData);
       setGenres(genresRes.data || []);
       setWarnings(warningsRes.data || []);
+      setSelectedChapterIds((prev) => prev.filter((chapterId) => chapterData.some((chapter) => chapter.id === chapterId)));
       setTitle(novelRes.novel.title);
       setDescription(novelRes.novel.description || '');
       setCoverUrl(novelRes.novel.cover_url || '');
@@ -70,8 +73,10 @@ export default function ManageNovelPage() {
 
   const chapterStats = useMemo(() => {
     const published = chapters.filter((chapter) => chapter.status === 'published').length;
+    const drafts = chapters.filter((chapter) => chapter.status === 'draft').length;
+    const scheduled = chapters.filter((chapter) => chapter.status === 'scheduled').length;
     const totalViews = chapters.reduce((sum, chapter) => sum + chapter.views, 0);
-    return { published, drafts: chapters.length - published, totalViews };
+    return { published, drafts, scheduled, totalViews };
   }, [chapters]);
 
   const visibleChapters = useMemo(() => {
@@ -79,12 +84,31 @@ export default function ManageNovelPage() {
     return chapters.filter((chapter) => chapter.status === chapterFilter);
   }, [chapterFilter, chapters]);
 
+  const visibleChapterIds = useMemo(() => visibleChapters.map((chapter) => chapter.id), [visibleChapters]);
+
+  const allVisibleSelected = useMemo(() => (
+    visibleChapterIds.length > 0 && visibleChapterIds.every((chapterId) => selectedChapterIds.includes(chapterId))
+  ), [selectedChapterIds, visibleChapterIds]);
+
   const toggleGenre = (genreId: string) => {
     setSelectedGenres((prev) => prev.includes(genreId) ? prev.filter((id) => id !== genreId) : [...prev, genreId]);
   };
 
   const toggleWarning = (warningId: string) => {
     setSelectedWarnings((prev) => prev.includes(warningId) ? prev.filter((id) => id !== warningId) : [...prev, warningId]);
+  };
+
+  const toggleChapterSelection = (chapterId: string) => {
+    setSelectedChapterIds((prev) => prev.includes(chapterId) ? prev.filter((id) => id !== chapterId) : [...prev, chapterId]);
+  };
+
+  const toggleVisibleSelection = () => {
+    setSelectedChapterIds((prev) => {
+      if (allVisibleSelected) {
+        return prev.filter((chapterId) => !visibleChapterIds.includes(chapterId));
+      }
+      return Array.from(new Set([...prev, ...visibleChapterIds]));
+    });
   };
 
   const handleSaveMetadata = async (event: React.FormEvent) => {
@@ -117,10 +141,55 @@ export default function ManageNovelPage() {
     if (!ok) return;
     try {
       await api.deleteChapter(chapterId);
-      setChapters((prev) => prev.filter((c) => c.id !== chapterId));
+      await loadData();
       toast('Chapter deleted', 'success');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to delete', 'error');
+    }
+  };
+
+  const handleBulkAction = async (action: ChapterBulkAction) => {
+    if (selectedChapterIds.length === 0) {
+      return;
+    }
+
+    const labels: Record<ChapterBulkAction, { message: string; confirmLabel: string; danger?: boolean; success: string }> = {
+      publish: {
+        message: `Publish ${selectedChapterIds.length} selected chapter${selectedChapterIds.length === 1 ? '' : 's'} now?`,
+        confirmLabel: 'Publish now',
+        success: 'Selected chapters published.',
+      },
+      draft: {
+        message: `Move ${selectedChapterIds.length} selected chapter${selectedChapterIds.length === 1 ? '' : 's'} back to draft? They will be hidden from readers.`,
+        confirmLabel: 'Move to draft',
+        success: 'Selected chapters moved to draft.',
+      },
+      delete: {
+        message: `Delete ${selectedChapterIds.length} selected chapter${selectedChapterIds.length === 1 ? '' : 's'}? This cannot be undone.`,
+        confirmLabel: 'Delete chapters',
+        danger: true,
+        success: 'Selected chapters deleted.',
+      },
+    };
+
+    const selection = labels[action];
+    const ok = await confirm({
+      message: selection.message,
+      confirmLabel: selection.confirmLabel,
+      danger: selection.danger,
+    });
+    if (!ok) return;
+
+    try {
+      const result = await api.bulkChapterAction(id, {
+        action,
+        chapter_ids: selectedChapterIds,
+      });
+      setSelectedChapterIds([]);
+      await loadData();
+      toast(result.count > 0 ? `${selection.success} (${result.count})` : selection.success, 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Bulk action failed', 'error');
     }
   };
 
@@ -240,7 +309,7 @@ export default function ManageNovelPage() {
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)] mb-3">Studio Stats</p>
             <div className="space-y-3 text-sm text-[var(--text-secondary)]">
               <p>{chapters.length} total chapters</p>
-              <p>{chapterStats.published} published · {chapterStats.drafts} drafts</p>
+              <p>{chapterStats.published} published · {chapterStats.drafts} drafts · {chapterStats.scheduled} scheduled</p>
               <p>{chapterStats.totalViews.toLocaleString()} chapter views</p>
             </div>
           </div>
@@ -265,6 +334,29 @@ export default function ManageNovelPage() {
       </div>
 
       <div>
+      <div className="card p-4 mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)] mb-1">Chapter Command Center</p>
+          <p className="text-sm text-[var(--text-secondary)]">
+            {selectedChapterIds.length} selected · {visibleChapters.length} visible in this filter
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={toggleVisibleSelection} className="btn-secondary text-sm">
+            {allVisibleSelected ? 'Clear Visible' : `Select ${visibleChapters.length} Visible`}
+          </button>
+          <button type="button" disabled={selectedChapterIds.length === 0} onClick={() => handleBulkAction('publish')} className="btn-primary text-sm disabled:opacity-50">
+            Publish Selected
+          </button>
+          <button type="button" disabled={selectedChapterIds.length === 0} onClick={() => handleBulkAction('draft')} className="btn-secondary text-sm disabled:opacity-50">
+            Move to Draft
+          </button>
+          <button type="button" disabled={selectedChapterIds.length === 0} onClick={() => handleBulkAction('delete')} className="px-3 py-2 rounded-lg text-sm bg-red-500/10 text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition">
+            Delete Selected
+          </button>
+        </div>
+      </div>
+
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
           <h2 className="text-xl font-semibold">Chapters</h2>
           <select value={chapterFilter} onChange={(e) => setChapterFilter(e.target.value as 'all' | 'draft' | 'published' | 'scheduled')} className="px-4 py-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] outline-none focus:border-brand-500 text-sm">
@@ -284,6 +376,13 @@ export default function ManageNovelPage() {
         <div className="space-y-3">
           {visibleChapters.map((ch) => (
             <div key={ch.id} className="card flex items-center gap-4 p-4">
+              <input
+                type="checkbox"
+                checked={selectedChapterIds.includes(ch.id)}
+                onChange={() => toggleChapterSelection(ch.id)}
+                className="h-4 w-4 accent-brand-500 shrink-0"
+                aria-label={`Select chapter ${ch.chapter_number}`}
+              />
               <div className="w-10 h-10 bg-brand-500/10 rounded-lg flex items-center justify-center text-brand-400 font-bold text-sm">
                 {ch.chapter_number}
               </div>

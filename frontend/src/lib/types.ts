@@ -78,6 +78,13 @@ export interface ChapterListItem {
   created_at: string;
 }
 
+export type ChapterBulkAction = 'publish' | 'draft' | 'delete';
+
+export interface BulkChapterActionResponse {
+  message: string;
+  count: number;
+}
+
 export interface PaginatedResponse<T> {
   data: T[];
   page: number;

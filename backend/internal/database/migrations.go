@@ -131,10 +131,19 @@ func runInlineMigrations(db *sqlx.DB) {
 		avatar_url VARCHAR(1000) DEFAULT '',
 		role VARCHAR(20) NOT NULL DEFAULT 'reader',
 		bio TEXT DEFAULT '',
+		email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+		email_verified_at TIMESTAMPTZ DEFAULT NULL,
+		suspended_at TIMESTAMPTZ DEFAULT NULL,
+		suspension_reason TEXT NOT NULL DEFAULT '',
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		deleted_at TIMESTAMPTZ DEFAULT NULL
 	);
+
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ DEFAULT NULL;
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ DEFAULT NULL;
+	ALTER TABLE users ADD COLUMN IF NOT EXISTS suspension_reason TEXT NOT NULL DEFAULT '';
 
 	CREATE TABLE IF NOT EXISTS oauth_accounts (
 		id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -184,10 +193,15 @@ func runInlineMigrations(db *sqlx.DB) {
 		body TEXT NOT NULL,
 		upvotes INT DEFAULT 0,
 		downvotes INT DEFAULT 0,
+		hidden BOOLEAN NOT NULL DEFAULT FALSE,
+		hidden_reason TEXT NOT NULL DEFAULT '',
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		deleted_at TIMESTAMPTZ DEFAULT NULL
 	);
+
+	ALTER TABLE comments ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE;
+	ALTER TABLE comments ADD COLUMN IF NOT EXISTS hidden_reason TEXT NOT NULL DEFAULT '';
 
 	CREATE TABLE IF NOT EXISTS reviews (
 		id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -203,11 +217,16 @@ func runInlineMigrations(db *sqlx.DB) {
 		title VARCHAR(200) DEFAULT '',
 		body TEXT DEFAULT '',
 		helpful_count INT DEFAULT 0,
+		hidden BOOLEAN NOT NULL DEFAULT FALSE,
+		hidden_reason TEXT NOT NULL DEFAULT '',
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		deleted_at TIMESTAMPTZ DEFAULT NULL,
 		UNIQUE(novel_id, user_id)
 	);
+
+	ALTER TABLE reviews ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE;
+	ALTER TABLE reviews ADD COLUMN IF NOT EXISTS hidden_reason TEXT NOT NULL DEFAULT '';
 
 	CREATE TABLE IF NOT EXISTS review_votes (
 		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -236,6 +255,25 @@ func runInlineMigrations(db *sqlx.DB) {
 		scroll_position DECIMAL(10,4) DEFAULT 0,
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		UNIQUE(user_id, novel_id)
+	);
+
+	CREATE TABLE IF NOT EXISTS email_verification_tokens (
+		id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		token_hash VARCHAR(255) NOT NULL UNIQUE,
+		expires_at TIMESTAMPTZ NOT NULL,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		UNIQUE(user_id)
+	);
+
+	CREATE TABLE IF NOT EXISTS audit_logs (
+		id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+		actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
+		action VARCHAR(100) NOT NULL,
+		resource_type VARCHAR(50) NOT NULL DEFAULT '',
+		resource_id UUID DEFAULT NULL,
+		details JSONB NOT NULL DEFAULT '{}'::jsonb,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	);
 
 	CREATE TABLE IF NOT EXISTS reports (

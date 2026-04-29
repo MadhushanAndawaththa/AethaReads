@@ -46,6 +46,29 @@ func SeedData(db *sqlx.DB) {
 		genreIDs[g.Name] = id
 	}
 
+	warnings := []struct {
+		Name string
+	}{
+		{"Graphic Violence"},
+		{"Strong Language"},
+		{"Sexual Content"},
+		{"Self Harm"},
+		{"Abuse"},
+		{"Drug Use"},
+	}
+
+	for _, warning := range warnings {
+		id := uuid.New()
+		s := slug.Make(warning.Name)
+		_, err := tx.Exec(
+			"INSERT INTO content_warnings (id, name, slug) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+			id, warning.Name, s,
+		)
+		if err != nil {
+			log.Printf("Content warning seed error: %v", err)
+		}
+	}
+
 	// Seed novels
 	novels := []struct {
 		Title       string

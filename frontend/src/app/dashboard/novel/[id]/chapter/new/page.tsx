@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { api } from '@/lib/api';
+import { getChapterEditorialError } from '@/lib/chapterEditorialValidation';
 
 export default function NewChapterPage() {
   const { id: novelId } = useParams<{ id: string }>();
@@ -25,12 +26,14 @@ export default function NewChapterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !content.trim()) {
-      setError('Title and content are required');
-      return;
-    }
-    if (status === 'scheduled' && !publishAt) {
-      setError('Choose a publish date and time for scheduled chapters');
+    const validationError = getChapterEditorialError({
+      title,
+      content,
+      status,
+      publishAt,
+    });
+    if (validationError) {
+      setError(validationError);
       return;
     }
     setError('');
@@ -93,6 +96,11 @@ export default function NewChapterPage() {
             className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition resize-y font-mono text-sm"
             placeholder="Write your chapter here..."
           />
+          {(status === 'published' || status === 'scheduled') && (
+            <p className="mt-2 text-xs text-[var(--text-muted)]">
+              Publish checks block suspicious HTML and near-empty content before a chapter goes live.
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-4">

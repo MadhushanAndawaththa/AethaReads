@@ -25,16 +25,18 @@ import (
 )
 
 const pwResetTTL = 15 * time.Minute
+const emailVerificationTTL = 24 * time.Hour
 
 type AuthHandler struct {
 	userRepo *repository.UserRepository
 	cfg      *config.AuthConfig
 	rdb      *redis.Client
 	emailSvc *email.Service
+	auditRepo *repository.AuditRepository
 }
 
-func NewAuthHandler(ur *repository.UserRepository, cfg *config.AuthConfig, rdb *redis.Client, emailSvc *email.Service) *AuthHandler {
-	return &AuthHandler{userRepo: ur, cfg: cfg, rdb: rdb, emailSvc: emailSvc}
+func NewAuthHandler(ur *repository.UserRepository, cfg *config.AuthConfig, rdb *redis.Client, emailSvc *email.Service, auditRepo *repository.AuditRepository) *AuthHandler {
+	return &AuthHandler{userRepo: ur, cfg: cfg, rdb: rdb, emailSvc: emailSvc, auditRepo: auditRepo}
 }
 
 // POST /api/auth/register
@@ -72,6 +74,13 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		return c.Status(500).JSON(models.ErrorResponse{Error: "Failed to create account"})
 	}
 
+	if token, err := h.userRepo.CreateEmailVerificationToken(c.Context(), user.ID, emailVerificationTTL); err == nil {
+		go h.sendVerificationEmail(user.Email, user.DisplayName, token)
+	} else {
+		log.Printf("register verification token error: %v", err)
+	}
+	h.audit(user.ID, "auth.register", "user", user.ID, map[string]any{"email": user.Email})
+
 	return h.issueTokens(c, user)
 }
 
@@ -92,15 +101,21 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	user, err := h.userRepo.GetByEmail(c.Context(), req.Email)
 	if err != nil {
 		middleware.RecordFailedLogin(c.Context(), h.rdb, req.Email, ip)
+		h.audit("", "auth.login_failed", "user", "", map[string]any{"email": req.Email, "ip": ip})
 		return c.Status(401).JSON(models.ErrorResponse{Error: "Invalid email or password"})
 	}
 
 	if !h.userRepo.CheckPassword(user, req.Password) {
 		middleware.RecordFailedLogin(c.Context(), h.rdb, req.Email, ip)
+		h.audit(user.ID, "auth.login_failed", "user", user.ID, map[string]any{"ip": ip})
 		return c.Status(401).JSON(models.ErrorResponse{Error: "Invalid email or password"})
+	}
+	if err := h.userRepo.EnsureCanAuthenticate(user); err != nil {
+		return c.Status(403).JSON(models.ErrorResponse{Error: err.Error()})
 	}
 
 	middleware.ClearLoginAttempts(c.Context(), h.rdb, req.Email, ip)
+	h.audit(user.ID, "auth.login", "user", user.ID, map[string]any{"ip": ip})
 	return h.issueTokens(c, user)
 }
 
@@ -174,12 +189,16 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
 		log.Printf("google oauth user error: %v", err)
 		return c.Status(500).JSON(models.ErrorResponse{Error: "Failed to create account"})
 	}
+	if err := h.userRepo.EnsureCanAuthenticate(user); err != nil {
+		return c.Status(403).JSON(models.ErrorResponse{Error: err.Error()})
+	}
+	h.audit(user.ID, "auth.oauth_login", "user", user.ID, map[string]any{"provider": "google"})
 
 	// After OAuth, redirect to frontend with user logged in
 	if err := h.setTokenCookies(c, user); err != nil {
 		return c.Status(500).JSON(models.ErrorResponse{Error: "Failed to issue tokens"})
 	}
-	return c.Redirect(fmt.Sprintf("%s/auth/callback", c.Query("redirect", "http://localhost:3000")))
+	return c.Redirect(fmt.Sprintf("%s/auth/callback", h.cfg.FrontendURL))
 }
 
 // POST /api/auth/refresh — rotate refresh token
@@ -193,6 +212,9 @@ func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(401).JSON(models.ErrorResponse{Error: "Invalid or expired refresh token"})
 	}
+	if err := h.userRepo.EnsureCanAuthenticate(user); err != nil {
+		return c.Status(403).JSON(models.ErrorResponse{Error: err.Error()})
+	}
 
 	return h.issueTokens(c, user)
 }
@@ -202,6 +224,7 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 	if userID != "" {
 		_ = h.userRepo.RevokeAllRefreshTokens(c.Context(), userID)
+		h.audit(userID, "auth.logout", "user", userID, nil)
 	}
 
 	// Clear cookies
@@ -264,6 +287,7 @@ func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 		token, err := h.createPasswordResetToken(c.Context(), user.ID)
 		if err == nil {
 			go h.sendPasswordResetEmail(user.Email, user.DisplayName, token)
+			h.audit(user.ID, "auth.password_reset_requested", "user", user.ID, nil)
 		}
 	}
 
@@ -295,8 +319,86 @@ func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
 
 	// Revoke all sessions for security
 	_ = h.userRepo.RevokeAllRefreshTokens(c.Context(), userID)
+	h.audit(userID, "auth.password_reset_completed", "user", userID, nil)
 
 	return c.JSON(fiber.Map{"message": "Password updated successfully. Please log in with your new password."})
+}
+
+// POST /api/auth/verify-email
+func (h *AuthHandler) VerifyEmail(c *fiber.Ctx) error {
+	var req models.VerifyEmailRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Invalid request body"})
+	}
+	if strings.TrimSpace(req.Token) == "" {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Token is required"})
+	}
+
+	userID, err := h.userRepo.ConsumeEmailVerificationToken(c.Context(), req.Token)
+	if err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Invalid or expired verification token"})
+	}
+	if err := h.userRepo.MarkEmailVerified(c.Context(), userID); err != nil {
+		return c.Status(500).JSON(models.ErrorResponse{Error: "Failed to verify email"})
+	}
+	h.audit(userID, "auth.email_verified", "user", userID, nil)
+
+	return c.JSON(fiber.Map{"message": "Email verified successfully."})
+}
+
+// POST /api/auth/resend-verification
+func (h *AuthHandler) ResendVerification(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	user, err := h.userRepo.GetByID(c.Context(), userID)
+	if err != nil {
+		return c.Status(404).JSON(models.ErrorResponse{Error: "User not found"})
+	}
+	if user.EmailVerified || user.PasswordHash == nil {
+		return c.JSON(fiber.Map{"message": "Email verification is already complete."})
+	}
+
+	token, err := h.userRepo.CreateEmailVerificationToken(c.Context(), user.ID, emailVerificationTTL)
+	if err != nil {
+		log.Printf("resend verification token error: %v", err)
+		return c.Status(500).JSON(models.ErrorResponse{Error: "Failed to send verification email"})
+	}
+	go h.sendVerificationEmail(user.Email, user.DisplayName, token)
+	h.audit(user.ID, "auth.email_verification_resent", "user", user.ID, nil)
+
+	return c.JSON(fiber.Map{"message": "Verification email sent."})
+}
+
+// POST /api/user/password
+func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	var req models.ChangePasswordRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Invalid request body"})
+	}
+	if strings.TrimSpace(req.CurrentPassword) == "" || strings.TrimSpace(req.NewPassword) == "" {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Current and new password are required"})
+	}
+	if len(req.NewPassword) < 8 {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Password must be at least 8 characters"})
+	}
+
+	user, err := h.userRepo.GetByID(c.Context(), userID)
+	if err != nil {
+		return c.Status(404).JSON(models.ErrorResponse{Error: "User not found"})
+	}
+	if user.PasswordHash == nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Password changes are unavailable for this account"})
+	}
+	if !h.userRepo.CheckPassword(user, req.CurrentPassword) {
+		return c.Status(401).JSON(models.ErrorResponse{Error: "Current password is incorrect"})
+	}
+	if err := h.userRepo.UpdatePassword(c.Context(), userID, req.NewPassword); err != nil {
+		return c.Status(500).JSON(models.ErrorResponse{Error: "Failed to update password"})
+	}
+	_ = h.userRepo.RevokeAllRefreshTokens(c.Context(), userID)
+	h.audit(userID, "auth.password_changed", "user", userID, nil)
+
+	return c.JSON(fiber.Map{"message": "Password changed successfully."})
 }
 
 // ===================== Internal helpers =====================
@@ -364,6 +466,7 @@ func toPublicUser(u *models.User) models.UserPublic {
 		AvatarURL:   u.AvatarURL,
 		Role:        u.Role,
 		Bio:         u.Bio,
+		EmailVerified: u.EmailVerified,
 		CreatedAt:   u.CreatedAt,
 	}
 }
@@ -434,5 +537,43 @@ If you did not request a password reset, you can safely ignore this email.
 
 	if err := h.emailSvc.Send(to, subject, body); err != nil {
 		log.Printf("failed to send password reset email to %s: %v", to, err)
+	}
+}
+
+func (h *AuthHandler) sendVerificationEmail(to, name, rawToken string) {
+	verifyURL := fmt.Sprintf("%s/auth/verify-email?token=%s", h.cfg.FrontendURL, url.QueryEscape(rawToken))
+	subject := "Verify your AethaReads email"
+	body := fmt.Sprintf(`Hi %s,
+
+Welcome to AethaReads.
+
+Verify your email address by opening the link below:
+%s
+
+This link is valid for 24 hours.
+
+You can still browse and read without verification, but community actions require a verified email.
+
+— The AethaReads Team`, name, verifyURL)
+
+	if err := h.emailSvc.Send(to, subject, body); err != nil {
+		log.Printf("failed to send verification email to %s: %v", to, err)
+	}
+}
+
+func (h *AuthHandler) audit(actorID, action, resourceType, resourceID string, details map[string]any) {
+	if h.auditRepo == nil {
+		return
+	}
+	var actorPtr *string
+	var resourcePtr *string
+	if strings.TrimSpace(actorID) != "" {
+		actorPtr = &actorID
+	}
+	if strings.TrimSpace(resourceID) != "" {
+		resourcePtr = &resourceID
+	}
+	if err := h.auditRepo.LogAction(context.Background(), actorPtr, action, resourceType, resourcePtr, details); err != nil {
+		log.Printf("audit log error: %v", err)
 	}
 }

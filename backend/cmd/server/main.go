@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"aetha-backend/internal/cache"
 	"aetha-backend/internal/config"
@@ -42,6 +43,8 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	authorRepo := repository.NewAuthorRepository(db)
 	communityRepo := repository.NewCommunityRepository(db)
+	reportRepo := repository.NewReportRepository(db)
+	auditRepo := repository.NewAuditRepository(db)
 
 	// Init cache
 	cacheService := cache.NewCacheService(rdb, cfg.Cache.ChapterTTL, cfg.Cache.NovelTTL, cfg.Cache.CatalogTTL)
@@ -64,13 +67,15 @@ func main() {
 	emailSvc := email.New(cfg.Email.Host, cfg.Email.Port, cfg.Email.Username, cfg.Email.Password, cfg.Email.From, cfg.Email.UseTLS)
 	h := &router.Handlers{
 		Novel:     handlers.NewNovelHandler(novelRepo, chapterRepo, cacheService),
-		Auth:      handlers.NewAuthHandler(userRepo, &cfg.Auth, rdb, emailSvc),
+		Auth:      handlers.NewAuthHandler(userRepo, &cfg.Auth, rdb, emailSvc, auditRepo),
 		Author:    handlers.NewAuthorHandler(authorRepo, novelRepo, userRepo, cacheService),
-		Community: handlers.NewCommunityHandler(communityRepo, novelRepo),
+		Community: handlers.NewCommunityHandler(communityRepo, novelRepo, reportRepo, auditRepo),
+		Admin:     handlers.NewAdminHandler(reportRepo, userRepo, communityRepo, auditRepo),
+		Health:    handlers.NewHealthHandler(db, rdb),
 	}
 
 	// Setup routes
-	router.Setup(app, h, cfg.Server.AllowedOrigins, cfg.Auth.JWTSecret)
+	router.Setup(app, h, userRepo, cfg.Server.AllowedOrigins, cfg.Auth.JWTSecret)
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
@@ -81,6 +86,21 @@ func main() {
 		log.Println("Shutting down gracefully...")
 		if err := app.Shutdown(); err != nil {
 			log.Printf("Server shutdown error: %v", err)
+		}
+	}()
+
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			published, err := authorRepo.PublishDueChapters(context.Background())
+			if err != nil {
+				log.Printf("scheduled publish error: %v", err)
+				continue
+			}
+			if published > 0 {
+				log.Printf("published %d scheduled chapters", published)
+			}
 		}
 	}()
 

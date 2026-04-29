@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"context"
 	"math"
 	"strconv"
+	"strings"
 
 	"aetha-backend/internal/middleware"
 	"aetha-backend/internal/models"
@@ -14,10 +16,12 @@ import (
 type CommunityHandler struct {
 	communityRepo *repository.CommunityRepository
 	novelRepo     *repository.NovelRepository
+	reportRepo    *repository.ReportRepository
+	auditRepo     *repository.AuditRepository
 }
 
-func NewCommunityHandler(cr *repository.CommunityRepository, nr *repository.NovelRepository) *CommunityHandler {
-	return &CommunityHandler{communityRepo: cr, novelRepo: nr}
+func NewCommunityHandler(cr *repository.CommunityRepository, nr *repository.NovelRepository, rr *repository.ReportRepository, ar *repository.AuditRepository) *CommunityHandler {
+	return &CommunityHandler{communityRepo: cr, novelRepo: nr, reportRepo: rr, auditRepo: ar}
 }
 
 // ===================== Comments =====================
@@ -290,4 +294,46 @@ func (h *CommunityHandler) GetAllProgress(c *fiber.Ctx) error {
 		return c.Status(500).JSON(models.ErrorResponse{Error: "Failed to fetch progress"})
 	}
 	return c.JSON(fiber.Map{"data": progress})
+}
+
+// POST /api/reports
+func (h *CommunityHandler) CreateReport(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	var req models.CreateReportRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Invalid request body"})
+	}
+	req.TargetType = strings.ToLower(strings.TrimSpace(req.TargetType))
+	req.TargetID = strings.TrimSpace(req.TargetID)
+	req.Reason = strings.TrimSpace(req.Reason)
+	if req.TargetID == "" || req.Reason == "" {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Target and reason are required"})
+	}
+	switch req.TargetType {
+	case "novel", "chapter", "comment", "review", "user":
+	default:
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Unsupported report target"})
+	}
+
+	report, err := h.reportRepo.CreateReport(c.Context(), userID, &req)
+	if err != nil {
+		return c.Status(500).JSON(models.ErrorResponse{Error: "Failed to create report"})
+	}
+	h.audit(context.Background(), userID, "moderation.report_created", req.TargetType, req.TargetID, map[string]any{"reason": req.Reason})
+	return c.Status(201).JSON(report)
+}
+
+func (h *CommunityHandler) audit(ctx context.Context, actorID, action, resourceType, resourceID string, details map[string]any) {
+	if h.auditRepo == nil {
+		return
+	}
+	var actorPtr *string
+	var resourcePtr *string
+	if actorID != "" {
+		actorPtr = &actorID
+	}
+	if resourceID != "" {
+		resourcePtr = &resourceID
+	}
+	_ = h.auditRepo.LogAction(ctx, actorPtr, action, resourceType, resourcePtr, details)
 }

@@ -17,7 +17,8 @@ export default function EditChapterPage() {
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [status, setStatus] = useState<'draft' | 'published'>('draft');
+  const [status, setStatus] = useState<'draft' | 'published' | 'scheduled'>('draft');
+  const [publishAt, setPublishAt] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -37,7 +38,8 @@ export default function EditChapterPage() {
       setChapter(ch);
       setTitle(ch.title);
       setContent(ch.content_md || ch.content || '');
-      setStatus((ch.status as 'draft' | 'published') || 'draft');
+      setStatus((ch.status as 'draft' | 'published' | 'scheduled') || 'draft');
+      setPublishAt(ch.published_at ? new Date(ch.published_at).toISOString().slice(0, 16) : '');
     } catch {
       setError('Chapter not found or you do not have permission to edit it.');
     } finally {
@@ -94,6 +96,10 @@ export default function EditChapterPage() {
       setError('Title and content are required');
       return;
     }
+    if (status === 'scheduled' && !publishAt) {
+      setError('Choose a publish date and time for scheduled chapters');
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
@@ -101,6 +107,7 @@ export default function EditChapterPage() {
         title: title.trim(),
         content_md: content,
         status,
+        publish_at: publishAt ? new Date(publishAt).toISOString() : undefined,
       });
       lastSavedRef.current = { title, content };
       setSaved(true);
@@ -215,7 +222,7 @@ export default function EditChapterPage() {
         </div>
 
         <div className="flex items-center gap-6">
-          {(['draft', 'published'] as const).map((s) => (
+          {(['draft', 'published', 'scheduled'] as const).map((s) => (
             <label key={s} className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
@@ -224,10 +231,23 @@ export default function EditChapterPage() {
                 onChange={() => setStatus(s)}
                 className="accent-brand-500"
               />
-              <span className="text-sm capitalize">{s === 'draft' ? 'Save as Draft' : 'Publish'}</span>
+              <span className="text-sm capitalize">{s === 'draft' ? 'Save as Draft' : s === 'published' ? 'Publish' : 'Schedule'}</span>
             </label>
           ))}
         </div>
+
+        {status === 'scheduled' && (
+          <div>
+            <label htmlFor="edit-publish-at" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Publish At</label>
+            <input
+              id="edit-publish-at"
+              type="datetime-local"
+              value={publishAt}
+              onChange={(e) => setPublishAt(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] outline-none focus:border-brand-500"
+            />
+          </div>
+        )}
 
         <div className="flex gap-3 pt-2">
           <button

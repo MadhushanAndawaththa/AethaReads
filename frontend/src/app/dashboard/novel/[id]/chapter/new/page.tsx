@@ -12,7 +12,8 @@ export default function NewChapterPage() {
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [status, setStatus] = useState<'draft' | 'published'>('draft');
+  const [status, setStatus] = useState<'draft' | 'published' | 'scheduled'>('draft');
+  const [publishAt, setPublishAt] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -28,6 +29,10 @@ export default function NewChapterPage() {
       setError('Title and content are required');
       return;
     }
+    if (status === 'scheduled' && !publishAt) {
+      setError('Choose a publish date and time for scheduled chapters');
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
@@ -35,6 +40,7 @@ export default function NewChapterPage() {
         title: title.trim(),
         content_md: content,
         status,
+        publish_at: publishAt ? new Date(publishAt).toISOString() : undefined,
       });
       router.push(`/dashboard/novel/${novelId}`);
     } catch (err: unknown) {
@@ -110,14 +116,37 @@ export default function NewChapterPage() {
             />
             <span className="text-sm">Publish Immediately</span>
           </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="status"
+              checked={status === 'scheduled'}
+              onChange={() => setStatus('scheduled')}
+              className="accent-brand-500"
+            />
+            <span className="text-sm">Schedule</span>
+          </label>
         </div>
+
+        {status === 'scheduled' && (
+          <div>
+            <label htmlFor="publish-at" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Publish At</label>
+            <input
+              id="publish-at"
+              type="datetime-local"
+              value={publishAt}
+              onChange={(e) => setPublishAt(e.target.value)}
+              className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] outline-none focus:border-brand-500"
+            />
+          </div>
+        )}
 
         <button
           type="submit"
           disabled={submitting}
           className="w-full btn-primary disabled:opacity-50"
         >
-          {submitting ? 'Saving...' : status === 'published' ? 'Publish Chapter' : 'Save Draft'}
+          {submitting ? 'Saving...' : status === 'published' ? 'Publish Chapter' : status === 'scheduled' ? 'Schedule Chapter' : 'Save Draft'}
         </button>
       </form>
     </div>

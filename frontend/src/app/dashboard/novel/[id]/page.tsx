@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { api } from '@/lib/api';
-import type { ChapterListItem, Genre, NovelWithGenres, NovelLanguage } from '@/lib/types';
+import type { ChapterListItem, ContentWarning, Genre, NovelWithGenres, NovelLanguage } from '@/lib/types';
 import { getLanguageLabel } from '@/lib/utils';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
@@ -17,6 +17,7 @@ export default function ManageNovelPage() {
   const [novel, setNovel] = useState<NovelWithGenres | null>(null);
   const [chapters, setChapters] = useState<ChapterListItem[]>([]);
   const [genres, setGenres] = useState<Genre[]>([]);
+  const [warnings, setWarnings] = useState<ContentWarning[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -29,24 +30,31 @@ export default function ManageNovelPage() {
   const [coverUrl, setCoverUrl] = useState('');
   const [status, setStatus] = useState('ongoing');
   const [language, setLanguage] = useState<NovelLanguage>('en');
+  const [novelType, setNovelType] = useState('web_novel');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [selectedWarnings, setSelectedWarnings] = useState<string[]>([]);
+  const [chapterFilter, setChapterFilter] = useState<'all' | 'draft' | 'published' | 'scheduled'>('all');
 
   const loadData = useCallback(async () => {
     try {
-      const [novelRes, chaptersRes, genresRes] = await Promise.all([
+      const [novelRes, chaptersRes, genresRes, warningsRes] = await Promise.all([
         api.getMyNovel(id),
         api.getMyChapters(id),
         api.getGenres(),
+        api.getContentWarnings(),
       ]);
       setNovel(novelRes.novel);
       setChapters(chaptersRes.data || []);
       setGenres(genresRes.data || []);
+      setWarnings(warningsRes.data || []);
       setTitle(novelRes.novel.title);
       setDescription(novelRes.novel.description || '');
       setCoverUrl(novelRes.novel.cover_url || '');
       setStatus(novelRes.novel.status || 'ongoing');
       setLanguage(novelRes.novel.language);
+      setNovelType(novelRes.novel.novel_type || 'web_novel');
       setSelectedGenres((novelRes.novel.genres || []).map((genre) => genre.id));
+      setSelectedWarnings((novelRes.novel.warnings || []).map((warning) => warning.id));
     } catch {
       setError('Failed to load novel studio data.');
     } finally {
@@ -66,8 +74,17 @@ export default function ManageNovelPage() {
     return { published, drafts: chapters.length - published, totalViews };
   }, [chapters]);
 
+  const visibleChapters = useMemo(() => {
+    if (chapterFilter === 'all') return chapters;
+    return chapters.filter((chapter) => chapter.status === chapterFilter);
+  }, [chapterFilter, chapters]);
+
   const toggleGenre = (genreId: string) => {
     setSelectedGenres((prev) => prev.includes(genreId) ? prev.filter((id) => id !== genreId) : [...prev, genreId]);
+  };
+
+  const toggleWarning = (warningId: string) => {
+    setSelectedWarnings((prev) => prev.includes(warningId) ? prev.filter((id) => id !== warningId) : [...prev, warningId]);
   };
 
   const handleSaveMetadata = async (event: React.FormEvent) => {
@@ -82,7 +99,9 @@ export default function ManageNovelPage() {
         cover_url: coverUrl.trim(),
         status,
         language,
+        novel_type: novelType,
         genre_ids: selectedGenres,
+        warning_ids: selectedWarnings,
       });
       await loadData();
       setSuccess('Novel metadata saved.');
@@ -167,6 +186,14 @@ export default function ManageNovelPage() {
                 <option value="bilingual">Bilingual</option>
               </select>
             </div>
+            <div>
+              <label htmlFor="novel-type" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Type</label>
+              <select id="novel-type" value={novelType} onChange={(e) => setNovelType(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] outline-none focus:border-brand-500">
+                <option value="web_novel">Web Novel</option>
+                <option value="light_novel">Light Novel</option>
+                <option value="published_novel">Published Novel</option>
+              </select>
+            </div>
           </div>
 
           <div>
@@ -180,6 +207,22 @@ export default function ManageNovelPage() {
                   className={`px-3 py-1.5 rounded-full text-sm border transition ${selectedGenres.includes(genre.id) ? 'bg-brand-500 border-brand-500 text-white' : 'bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-muted)] hover:border-brand-500/50'}`}
                 >
                   {genre.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium mb-2 text-[var(--text-secondary)]">Content Warnings</p>
+            <div className="flex flex-wrap gap-2">
+              {warnings.map((warning) => (
+                <button
+                  key={warning.id}
+                  type="button"
+                  onClick={() => toggleWarning(warning.id)}
+                  className={`px-3 py-1.5 rounded-full text-sm border transition ${selectedWarnings.includes(warning.id) ? 'bg-amber-500/15 border-amber-500/40 text-amber-300' : 'bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-muted)] hover:border-amber-500/40'}`}
+                >
+                  {warning.name}
                 </button>
               ))}
             </div>
@@ -222,16 +265,24 @@ export default function ManageNovelPage() {
       </div>
 
       <div>
-        <h2 className="text-xl font-semibold mb-4">Chapters</h2>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+          <h2 className="text-xl font-semibold">Chapters</h2>
+          <select value={chapterFilter} onChange={(e) => setChapterFilter(e.target.value as 'all' | 'draft' | 'published' | 'scheduled')} className="px-4 py-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] outline-none focus:border-brand-500 text-sm">
+            <option value="all">All chapters</option>
+            <option value="draft">Drafts</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="published">Published</option>
+          </select>
+        </div>
 
-      {chapters.length === 0 ? (
+      {visibleChapters.length === 0 ? (
         <div className="card p-12 text-center">
           <p className="text-[var(--text-muted)] mb-4">No chapters yet.</p>
           <Link href={`/dashboard/novel/${id}/chapter/new`} className="btn-primary text-sm inline-flex">Write Your First Chapter</Link>
         </div>
       ) : (
         <div className="space-y-3">
-          {chapters.map((ch) => (
+          {visibleChapters.map((ch) => (
             <div key={ch.id} className="card flex items-center gap-4 p-4">
               <div className="w-10 h-10 bg-brand-500/10 rounded-lg flex items-center justify-center text-brand-400 font-bold text-sm">
                 {ch.chapter_number}
@@ -244,6 +295,7 @@ export default function ManageNovelPage() {
                   <span className={ch.status === 'published' ? 'text-green-400' : ch.status === 'draft' ? 'text-yellow-400' : 'text-blue-400'}>
                     {ch.status}
                   </span>
+                  {ch.status === 'scheduled' && ch.published_at ? ` · publishes ${new Date(ch.published_at).toLocaleString()}` : ''}
                 </p>
               </div>
               <div className="flex gap-2">

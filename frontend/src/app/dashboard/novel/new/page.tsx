@@ -4,18 +4,21 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { api } from '@/lib/api';
-import type { Genre, NovelLanguage } from '@/lib/types';
+import type { ContentWarning, Genre, NovelLanguage } from '@/lib/types';
 
 export default function NewNovelPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [genres, setGenres] = useState<Genre[]>([]);
+  const [warnings, setWarnings] = useState<ContentWarning[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
   const [novelType, setNovelType] = useState('web_novel');
+  const [status, setStatus] = useState('ongoing');
   const [language, setLanguage] = useState<NovelLanguage>('en');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [selectedWarnings, setSelectedWarnings] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -23,11 +26,18 @@ export default function NewNovelPage() {
     if (authLoading) return;
     if (!user) { router.replace('/auth/login'); return; }
     api.getGenres().then((res) => setGenres(res.data || [])).catch(() => {});
+    api.getContentWarnings().then((res) => setWarnings(res.data || [])).catch(() => {});
   }, [user, authLoading, router]);
 
   const toggleGenre = (id: string) => {
     setSelectedGenres((prev) =>
       prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id]
+    );
+  };
+
+  const toggleWarning = (id: string) => {
+    setSelectedWarnings((prev) =>
+      prev.includes(id) ? prev.filter((warningId) => warningId !== id) : [...prev, id]
     );
   };
 
@@ -41,10 +51,11 @@ export default function NewNovelPage() {
         title: title.trim(),
         description: description.trim(),
         cover_url: coverUrl.trim(),
-        status: 'ongoing',
+        status,
         language,
         novel_type: novelType,
         genre_ids: selectedGenres,
+        warning_ids: selectedWarnings,
       });
       router.push('/dashboard');
     } catch (err: unknown) {
@@ -104,6 +115,15 @@ export default function NewNovelPage() {
           />
         </div>
 
+        {coverUrl && (
+          <div className="card p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)] mb-3">Cover Preview</p>
+            <div className="w-32 aspect-[3/4] rounded-xl overflow-hidden border border-[var(--border-color)] bg-[var(--bg-secondary)]">
+              <img src={coverUrl} alt="Novel cover preview" className="w-full h-full object-cover" />
+            </div>
+          </div>
+        )}
+
         <div>
           <label htmlFor="novel-type" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Type</label>
           <select
@@ -132,6 +152,20 @@ export default function NewNovelPage() {
           </select>
         </div>
 
+        <div>
+          <label htmlFor="novel-status" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Status</label>
+          <select
+            id="novel-status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] focus:border-brand-500 outline-none transition"
+          >
+            <option value="ongoing">Ongoing</option>
+            <option value="hiatus">Hiatus</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+
         {genres.length > 0 && (
           <div>
           <label className="block text-sm font-medium mb-2 text-[var(--text-secondary)]">Genres</label>
@@ -148,6 +182,28 @@ export default function NewNovelPage() {
                   }`}
                 >
                   {genre.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {warnings.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium mb-2 text-[var(--text-secondary)]">Content Warnings</label>
+            <div className="flex flex-wrap gap-2">
+              {warnings.map((warning) => (
+                <button
+                  key={warning.id}
+                  type="button"
+                  onClick={() => toggleWarning(warning.id)}
+                  className={`px-3 py-1.5 rounded-full text-sm border transition ${
+                    selectedWarnings.includes(warning.id)
+                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                      : 'bg-[var(--bg-secondary)] border-[var(--border-color)] text-[var(--text-muted)] hover:border-amber-500/40'
+                  }`}
+                >
+                  {warning.name}
                 </button>
               ))}
             </div>

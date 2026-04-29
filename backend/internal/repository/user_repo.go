@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -180,8 +181,8 @@ func (r *UserRepository) FindOrCreateOAuth(ctx context.Context, provider, provid
 	username := "user_" + id[:8]
 	user := &models.User{}
 	err = tx.GetContext(ctx, user, `
-		INSERT INTO users (id, email, username, display_name, avatar_url, role)
-		VALUES ($1, $2, $3, $4, $5, 'reader')
+		INSERT INTO users (id, email, username, display_name, avatar_url, role, email_verified, email_verified_at)
+		VALUES ($1, $2, $3, $4, $5, 'reader', TRUE, NOW())
 		RETURNING *`, id, email, username, displayName, avatarURL)
 	if err != nil {
 		return nil, err
@@ -247,6 +248,98 @@ func (r *UserRepository) RevokeAllRefreshTokens(ctx context.Context, userID stri
 		"UPDATE refresh_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL",
 		userID)
 	return err
+}
+
+func (r *UserRepository) CreateEmailVerificationToken(ctx context.Context, userID string, expiry time.Duration) (string, error) {
+	rawBytes := make([]byte, 32)
+	if _, err := rand.Read(rawBytes); err != nil {
+		return "", err
+	}
+	rawToken := hex.EncodeToString(rawBytes)
+	hash := sha256.Sum256([]byte(rawToken))
+	tokenHash := hex.EncodeToString(hash[:])
+
+	_, err := r.db.ExecContext(ctx, "DELETE FROM email_verification_tokens WHERE user_id = $1", userID)
+	if err != nil {
+		return "", err
+	}
+
+	id := uuid.New().String()
+	_, err = r.db.ExecContext(ctx, `
+		INSERT INTO email_verification_tokens (id, user_id, token_hash, expires_at)
+		VALUES ($1, $2, $3, $4)`,
+		id, userID, tokenHash, time.Now().Add(expiry))
+	if err != nil {
+		return "", err
+	}
+
+	return rawToken, nil
+}
+
+func (r *UserRepository) ConsumeEmailVerificationToken(ctx context.Context, rawToken string) (string, error) {
+	hash := sha256.Sum256([]byte(rawToken))
+	tokenHash := hex.EncodeToString(hash[:])
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+
+	var token models.EmailVerificationToken
+	err = tx.GetContext(ctx, &token, `
+		SELECT * FROM email_verification_tokens
+		WHERE token_hash = $1 AND expires_at > NOW()`, tokenHash)
+	if err != nil {
+		return "", err
+	}
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM email_verification_tokens WHERE id = $1", token.ID); err != nil {
+		return "", err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+
+	return token.UserID, nil
+}
+
+func (r *UserRepository) MarkEmailVerified(ctx context.Context, userID string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE users
+		SET email_verified = TRUE,
+			email_verified_at = COALESCE(email_verified_at, NOW()),
+			updated_at = NOW()
+		WHERE id = $1`, userID)
+	return err
+}
+
+func (r *UserRepository) SuspendUser(ctx context.Context, userID, reason string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE users
+		SET suspended_at = NOW(), suspension_reason = $2, updated_at = NOW()
+		WHERE id = $1`, userID, strings.TrimSpace(reason))
+	return err
+}
+
+func (r *UserRepository) UnsuspendUser(ctx context.Context, userID string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE users
+		SET suspended_at = NULL, suspension_reason = '', updated_at = NOW()
+		WHERE id = $1`, userID)
+	return err
+}
+
+func (r *UserRepository) EnsureCanAuthenticate(user *models.User) error {
+	if user.SuspendedAt != nil {
+		reason := strings.TrimSpace(user.SuspensionReason)
+		if reason == "" {
+			reason = "your account is suspended"
+		}
+		return fmt.Errorf("%s", reason)
+	}
+	return nil
 }
 
 // ===================== Password Verification =====================

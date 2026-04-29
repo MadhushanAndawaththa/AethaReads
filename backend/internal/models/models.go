@@ -29,10 +29,17 @@ type Novel struct {
 
 type NovelWithGenres struct {
 	Novel
-	Genres []Genre `json:"genres"`
+	Genres   []Genre          `json:"genres"`
+	Warnings []ContentWarning `json:"warnings"`
 }
 
 type Genre struct {
+	ID   string `json:"id" db:"id"`
+	Name string `json:"name" db:"name"`
+	Slug string `json:"slug" db:"slug"`
+}
+
+type ContentWarning struct {
 	ID   string `json:"id" db:"id"`
 	Name string `json:"name" db:"name"`
 	Slug string `json:"slug" db:"slug"`
@@ -76,6 +83,10 @@ type User struct {
 	AvatarURL    string     `json:"avatar_url" db:"avatar_url"`
 	Role         string     `json:"role" db:"role"`
 	Bio          string     `json:"bio" db:"bio"`
+	EmailVerified bool      `json:"email_verified" db:"email_verified"`
+	EmailVerifiedAt *time.Time `json:"email_verified_at,omitempty" db:"email_verified_at"`
+	SuspendedAt *time.Time  `json:"suspended_at,omitempty" db:"suspended_at"`
+	SuspensionReason string `json:"suspension_reason,omitempty" db:"suspension_reason"`
 	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at" db:"updated_at"`
 	DeletedAt    *time.Time `json:"-" db:"deleted_at"`
@@ -88,6 +99,7 @@ type UserPublic struct {
 	AvatarURL   string    `json:"avatar_url"`
 	Role        string    `json:"role"`
 	Bio         string    `json:"bio"`
+	EmailVerified bool    `json:"email_verified"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
@@ -132,6 +144,8 @@ type Comment struct {
 	Body      string     `json:"body" db:"body"`
 	Upvotes   int        `json:"upvotes" db:"upvotes"`
 	Downvotes int        `json:"downvotes" db:"downvotes"`
+	Hidden    bool       `json:"hidden" db:"hidden"`
+	HiddenReason string  `json:"hidden_reason,omitempty" db:"hidden_reason"`
 	CreatedAt time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at" db:"updated_at"`
 	DeletedAt *time.Time `json:"-" db:"deleted_at"`
@@ -157,6 +171,8 @@ type Review struct {
 	Title           string     `json:"title" db:"title"`
 	Body            string     `json:"body" db:"body"`
 	HelpfulCount    int        `json:"helpful_count" db:"helpful_count"`
+	Hidden          bool       `json:"hidden" db:"hidden"`
+	HiddenReason    string     `json:"hidden_reason,omitempty" db:"hidden_reason"`
 	CreatedAt       time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at" db:"updated_at"`
 	DeletedAt       *time.Time `json:"-" db:"deleted_at"`
@@ -198,6 +214,43 @@ type ReadingProgress struct {
 	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
 }
 
+type Report struct {
+	ID         string     `json:"id" db:"id"`
+	ReporterID string     `json:"reporter_id" db:"reporter_id"`
+	TargetType string     `json:"target_type" db:"target_type"`
+	TargetID   string     `json:"target_id" db:"target_id"`
+	Reason     string     `json:"reason" db:"reason"`
+	Details    string     `json:"details" db:"details"`
+	Status     string     `json:"status" db:"status"`
+	ReviewedBy *string    `json:"reviewed_by,omitempty" db:"reviewed_by"`
+	CreatedAt  time.Time  `json:"created_at" db:"created_at"`
+	ResolvedAt *time.Time `json:"resolved_at,omitempty" db:"resolved_at"`
+}
+
+type ReportWithReporter struct {
+	Report
+	ReporterUsername    string `json:"reporter_username" db:"reporter_username"`
+	ReporterDisplayName string `json:"reporter_display_name" db:"reporter_display_name"`
+}
+
+type EmailVerificationToken struct {
+	ID        string    `json:"id" db:"id"`
+	UserID    string    `json:"user_id" db:"user_id"`
+	TokenHash string    `json:"-" db:"token_hash"`
+	ExpiresAt time.Time `json:"expires_at" db:"expires_at"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+type AuditLog struct {
+	ID           string    `json:"id" db:"id"`
+	ActorID      *string   `json:"actor_id,omitempty" db:"actor_id"`
+	Action       string    `json:"action" db:"action"`
+	ResourceType string    `json:"resource_type" db:"resource_type"`
+	ResourceID   *string   `json:"resource_id,omitempty" db:"resource_id"`
+	Details      string    `json:"details" db:"details"`
+	CreatedAt    time.Time `json:"created_at" db:"created_at"`
+}
+
 // ===================== API Requests =====================
 
 type RegisterRequest struct {
@@ -220,6 +273,15 @@ type ResetPasswordRequest struct {
 	Password string `json:"password"`
 }
 
+type VerifyEmailRequest struct {
+	Token string `json:"token"`
+}
+
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
 type CreateNovelRequest struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
@@ -228,6 +290,7 @@ type CreateNovelRequest struct {
 	Language    string   `json:"language"`
 	NovelType   string   `json:"novel_type"`
 	GenreIDs    []string `json:"genre_ids"`
+	WarningIDs  []string `json:"warning_ids"`
 }
 
 type UpdateNovelRequest struct {
@@ -236,7 +299,9 @@ type UpdateNovelRequest struct {
 	CoverURL    *string  `json:"cover_url"`
 	Status      *string  `json:"status"`
 	Language    *string  `json:"language"`
+	NovelType   *string  `json:"novel_type"`
 	GenreIDs    []string `json:"genre_ids"`
+	WarningIDs  []string `json:"warning_ids"`
 }
 
 type UpdateUserProfileRequest struct {
@@ -274,6 +339,23 @@ type CreateReviewRequest struct {
 	RatingCharacter int    `json:"rating_character"`
 	Title           string `json:"title"`
 	Body            string `json:"body"`
+}
+
+type CreateReportRequest struct {
+	TargetType string `json:"target_type"`
+	TargetID   string `json:"target_id"`
+	Reason     string `json:"reason"`
+	Details    string `json:"details"`
+}
+
+type UpdateReportStatusRequest struct {
+	Status string `json:"status"`
+	Action string `json:"action"`
+	Reason string `json:"reason"`
+}
+
+type SuspendUserRequest struct {
+	Reason string `json:"reason"`
 }
 
 type UpdateProgressRequest struct {

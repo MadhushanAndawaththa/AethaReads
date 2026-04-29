@@ -57,7 +57,7 @@ func (r *CommunityRepository) GetComment(ctx context.Context, id string) (*model
 	err := r.db.GetContext(ctx, comment, `
 		SELECT c.*, u.username, u.display_name, u.avatar_url, u.role as user_role
 		FROM comments c JOIN users u ON c.user_id = u.id
-		WHERE c.id = $1 AND c.deleted_at IS NULL`, id)
+		WHERE c.id = $1 AND c.deleted_at IS NULL AND c.hidden = FALSE`, id)
 	return comment, err
 }
 
@@ -66,7 +66,7 @@ func (r *CommunityRepository) GetCommentsByChapter(ctx context.Context, chapterI
 
 	var total int
 	err := r.db.GetContext(ctx, &total,
-		"SELECT COUNT(*) FROM comments WHERE chapter_id = $1 AND deleted_at IS NULL", chapterID)
+		"SELECT COUNT(*) FROM comments WHERE chapter_id = $1 AND deleted_at IS NULL AND hidden = FALSE", chapterID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -75,7 +75,7 @@ func (r *CommunityRepository) GetCommentsByChapter(ctx context.Context, chapterI
 	err = r.db.SelectContext(ctx, &comments, `
 		SELECT c.*, u.username, u.display_name, u.avatar_url, u.role as user_role
 		FROM comments c JOIN users u ON c.user_id = u.id
-		WHERE c.chapter_id = $1 AND c.deleted_at IS NULL
+		WHERE c.chapter_id = $1 AND c.deleted_at IS NULL AND c.hidden = FALSE
 		ORDER BY c.path ASC
 		LIMIT $2 OFFSET $3`, chapterID, perPage, offset)
 	return comments, total, err
@@ -128,7 +128,7 @@ func (r *CommunityRepository) GetReviewsByNovel(ctx context.Context, novelID str
 
 	var total int
 	err := r.db.GetContext(ctx, &total,
-		"SELECT COUNT(*) FROM reviews WHERE novel_id = $1 AND deleted_at IS NULL", novelID)
+		"SELECT COUNT(*) FROM reviews WHERE novel_id = $1 AND deleted_at IS NULL AND hidden = FALSE", novelID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -137,10 +137,38 @@ func (r *CommunityRepository) GetReviewsByNovel(ctx context.Context, novelID str
 	err = r.db.SelectContext(ctx, &reviews, `
 		SELECT r.*, u.username, u.display_name, u.avatar_url
 		FROM reviews r JOIN users u ON r.user_id = u.id
-		WHERE r.novel_id = $1 AND r.deleted_at IS NULL
+		WHERE r.novel_id = $1 AND r.deleted_at IS NULL AND r.hidden = FALSE
 		ORDER BY r.helpful_count DESC, r.created_at DESC
 		LIMIT $2 OFFSET $3`, novelID, perPage, offset)
 	return reviews, total, err
+}
+
+func (r *CommunityRepository) HideComment(ctx context.Context, commentID, reason string) error {
+	_, err := r.db.ExecContext(ctx,
+		"UPDATE comments SET hidden = TRUE, hidden_reason = $2, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
+		commentID, reason)
+	return err
+}
+
+func (r *CommunityRepository) UnhideComment(ctx context.Context, commentID string) error {
+	_, err := r.db.ExecContext(ctx,
+		"UPDATE comments SET hidden = FALSE, hidden_reason = '', updated_at = NOW() WHERE id = $1",
+		commentID)
+	return err
+}
+
+func (r *CommunityRepository) HideReview(ctx context.Context, reviewID, reason string) error {
+	_, err := r.db.ExecContext(ctx,
+		"UPDATE reviews SET hidden = TRUE, hidden_reason = $2, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
+		reviewID, reason)
+	return err
+}
+
+func (r *CommunityRepository) UnhideReview(ctx context.Context, reviewID string) error {
+	_, err := r.db.ExecContext(ctx,
+		"UPDATE reviews SET hidden = FALSE, hidden_reason = '', updated_at = NOW() WHERE id = $1",
+		reviewID)
+	return err
 }
 
 func (r *CommunityRepository) VoteReview(ctx context.Context, reviewID, userID string, helpful bool) error {

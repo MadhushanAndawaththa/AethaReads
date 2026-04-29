@@ -6,6 +6,7 @@ import (
 
 	"aetha-backend/internal/config"
 	"aetha-backend/internal/models"
+	"aetha-backend/internal/repository"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
@@ -107,6 +108,50 @@ func RequireRole(roles ...string) fiber.Handler {
 			}
 		}
 		return c.Status(403).JSON(models.ErrorResponse{Error: "Insufficient permissions"})
+	}
+}
+
+func RequireAdmin() fiber.Handler {
+	return RequireRole("admin")
+}
+
+func RequireActiveUser(userRepo *repository.UserRepository) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID := GetUserID(c)
+		if userID == "" {
+			return c.Status(401).JSON(models.ErrorResponse{Error: "Authentication required"})
+		}
+
+		user, err := userRepo.GetByID(c.Context(), userID)
+		if err != nil {
+			return c.Status(401).JSON(models.ErrorResponse{Error: "User not found"})
+		}
+		if user.SuspendedAt != nil {
+			message := strings.TrimSpace(user.SuspensionReason)
+			if message == "" {
+				message = "Your account is suspended"
+			}
+			return c.Status(403).JSON(models.ErrorResponse{Error: message})
+		}
+		return c.Next()
+	}
+}
+
+func RequireVerifiedEmail(userRepo *repository.UserRepository) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userID := GetUserID(c)
+		if userID == "" {
+			return c.Status(401).JSON(models.ErrorResponse{Error: "Authentication required"})
+		}
+
+		user, err := userRepo.GetByID(c.Context(), userID)
+		if err != nil {
+			return c.Status(401).JSON(models.ErrorResponse{Error: "User not found"})
+		}
+		if user.EmailVerified {
+			return c.Next()
+		}
+		return c.Status(403).JSON(models.ErrorResponse{Error: "Please verify your email before using community features"})
 	}
 }
 

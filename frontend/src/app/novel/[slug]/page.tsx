@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
 import { FollowButton } from '@/components/FollowButton';
+import { ReportButton } from '@/components/ReportButton';
 import { ReviewSection } from '@/components/ReviewSection';
 import { ResumeReading } from '@/components/ResumeReading';
 
@@ -131,6 +132,22 @@ export default async function NovelPage({ params }: NovelPageProps) {
               ))}
             </div>
 
+            {novel.warnings && novel.warnings.length > 0 && (
+              <div className="mb-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)] mb-2">Content Warnings</p>
+                <div className="flex flex-wrap gap-2">
+                  {novel.warnings.map((warning) => (
+                    <span
+                      key={warning.id}
+                      className="text-xs px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                    >
+                      {warning.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-4 text-xs text-[var(--text-muted)] mb-4">
               <span className="flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -175,6 +192,7 @@ export default async function NovelPage({ params }: NovelPageProps) {
               )}
               <FollowButton slug={slug} followerCount={novel.follower_count} />
               <ResumeReading slug={slug} />
+              <ReportButton targetType="novel" targetId={novel.id} />
             </div>
           </div>
         </div>

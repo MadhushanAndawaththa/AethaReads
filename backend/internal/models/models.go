@@ -327,6 +327,11 @@ type UpdateChapterRequest struct {
 	PublishAt *string `json:"publish_at"`
 }
 
+type BulkChapterActionRequest struct {
+	ChapterIDs []string `json:"chapter_ids"`
+	Action     string   `json:"action"`
+}
+
 type CreateCommentRequest struct {
 	Body     string  `json:"body"`
 	ParentID *string `json:"parent_id"`
@@ -376,6 +381,11 @@ type PaginatedResponse struct {
 type NovelDetailResponse struct {
 	Novel    NovelWithGenres   `json:"novel"`
 	Chapters []ChapterListItem `json:"chapters"`
+}
+
+type BulkChapterActionResponse struct {
+	Message string `json:"message"`
+	Count   int    `json:"count"`
 }
 
 type ChapterReadResponse struct {

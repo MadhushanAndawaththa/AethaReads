@@ -156,6 +156,7 @@ func Setup(app *fiber.App, h *Handlers, userRepo *repository.UserRepository, all
 		authorProtected.Delete("/novels/:id", h.Author.DeleteNovel)
 		authorProtected.Get("/novels/:id/chapters", h.Author.GetMyChapters)
 		authorProtected.Post("/novels/:id/chapters", h.Author.CreateChapter)
+		authorProtected.Post("/novels/:id/chapters/bulk", h.Author.BulkChapterAction)
 		authorProtected.Get("/chapters/:id", h.Author.GetChapterForEdit)
 		authorProtected.Put("/chapters/:id", h.Author.UpdateChapter)
 		authorProtected.Delete("/chapters/:id", h.Author.DeleteChapter)

@@ -1,7 +1,12 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
 	"log"
+	"regexp"
+	"strings"
+	"time"
 
 	"aetha-backend/internal/cache"
 	"aetha-backend/internal/middleware"
@@ -18,8 +23,70 @@ type AuthorHandler struct {
 	cache      *cache.CacheService
 }
 
+var suspiciousChapterHTMLPattern = regexp.MustCompile(`(?is)<\s*(script|iframe|object|embed|form|input|button|style|link|meta)|on[a-z]+\s*=|javascript:`)
+var markdownNoisePattern = regexp.MustCompile(`[>#*_~\-\[\]\(\)!\x60]`)
+
 func NewAuthorHandler(ar *repository.AuthorRepository, nr *repository.NovelRepository, ur *repository.UserRepository, cs *cache.CacheService) *AuthorHandler {
 	return &AuthorHandler{authorRepo: ar, novelRepo: nr, userRepo: ur, cache: cs}
+}
+
+func hasMeaningfulChapterContent(content string) bool {
+	cleaned := suspiciousChapterHTMLPattern.ReplaceAllString(content, " ")
+	cleaned = markdownNoisePattern.ReplaceAllString(cleaned, " ")
+	cleaned = strings.Join(strings.Fields(cleaned), "")
+	return len([]rune(cleaned)) >= 20
+}
+
+func validateChapterSubmission(title, content, status string, publishAt *string) error {
+	title = strings.TrimSpace(title)
+	content = strings.TrimSpace(content)
+	status = strings.ToLower(strings.TrimSpace(status))
+
+	if title == "" || content == "" {
+		return fmt.Errorf("title and content are required")
+	}
+
+	if status == "published" || status == "scheduled" {
+		if suspiciousChapterHTMLPattern.MatchString(content) {
+			return fmt.Errorf("chapter content contains HTML that is not allowed for published chapters")
+		}
+		if !hasMeaningfulChapterContent(content) {
+			return fmt.Errorf("published chapters need more meaningful content before they can go live")
+		}
+	}
+
+	if status == "scheduled" {
+		if publishAt == nil || strings.TrimSpace(*publishAt) == "" {
+			return fmt.Errorf("publish_at is required for scheduled chapters")
+		}
+		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*publishAt))
+		if err != nil {
+			return fmt.Errorf("publish_at must be a valid ISO8601 timestamp")
+		}
+		if !parsed.After(time.Now()) {
+			return fmt.Errorf("scheduled publish time must be in the future")
+		}
+	}
+
+	return nil
+}
+
+func (h *AuthorHandler) invalidateNovelCache(ctx context.Context, slug string) {
+	if h.cache == nil {
+		return
+	}
+	h.cache.InvalidateCatalog(ctx)
+	if slug != "" {
+		h.cache.InvalidateNovel(ctx, slug)
+	}
+}
+
+func (h *AuthorHandler) getNovelSlug(ctx context.Context, novelID, authorID string) string {
+	novel, err := h.authorRepo.GetAuthorNovel(ctx, novelID, authorID)
+	if err != nil {
+		return ""
+	}
+	return novel.Slug
 }
 
 // POST /api/author/novels — create a new novel
@@ -104,12 +171,13 @@ func (h *AuthorHandler) GetMyNovel(c *fiber.Ctx) error {
 func (h *AuthorHandler) DeleteNovel(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 	novelID := c.Params("id")
+	slug := h.getNovelSlug(c.Context(), novelID, userID)
 
 	if err := h.authorRepo.DeleteNovel(c.Context(), novelID, userID); err != nil {
 		return c.Status(400).JSON(models.ErrorResponse{Error: err.Error()})
 	}
 
-	h.cache.InvalidateCatalog(c.Context())
+	h.invalidateNovelCache(c.Context(), slug)
 	return c.JSON(fiber.Map{"message": "Novel deleted"})
 }
 
@@ -122,8 +190,8 @@ func (h *AuthorHandler) CreateChapter(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(models.ErrorResponse{Error: "Invalid request body"})
 	}
-	if req.Title == "" || req.ContentMD == "" {
-		return c.Status(400).JSON(models.ErrorResponse{Error: "Title and content are required"})
+	if err := validateChapterSubmission(req.Title, req.ContentMD, req.Status, &req.PublishAt); err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: err.Error()})
 	}
 
 	chapter, err := h.authorRepo.CreateChapter(c.Context(), novelID, userID, &req)
@@ -131,6 +199,8 @@ func (h *AuthorHandler) CreateChapter(c *fiber.Ctx) error {
 		log.Printf("create chapter error: %v", err)
 		return c.Status(400).JSON(models.ErrorResponse{Error: err.Error()})
 	}
+
+	h.invalidateNovelCache(c.Context(), h.getNovelSlug(c.Context(), novelID, userID))
 
 	return c.Status(201).JSON(chapter)
 }
@@ -158,12 +228,72 @@ func (h *AuthorHandler) UpdateChapter(c *fiber.Ctx) error {
 		return c.Status(400).JSON(models.ErrorResponse{Error: "Invalid request body"})
 	}
 
+	existingChapter, err := h.authorRepo.GetChapterByID(c.Context(), chapterID, userID)
+	if err != nil {
+		return c.Status(404).JSON(models.ErrorResponse{Error: err.Error()})
+	}
+
+	title := existingChapter.Title
+	if req.Title != nil {
+		title = *req.Title
+	}
+
+	content := existingChapter.ContentMD
+	if strings.TrimSpace(content) == "" {
+		content = existingChapter.Content
+	}
+	if req.ContentMD != nil {
+		content = *req.ContentMD
+	}
+
+	status := existingChapter.Status
+	if req.Status != nil {
+		status = *req.Status
+	}
+
+	var publishAtValue *string
+	if req.PublishAt != nil {
+		publishAtValue = req.PublishAt
+	} else if existingChapter.PublishedAt != nil {
+		formatted := existingChapter.PublishedAt.UTC().Format(time.RFC3339)
+		publishAtValue = &formatted
+	}
+
+	if err := validateChapterSubmission(title, content, status, publishAtValue); err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: err.Error()})
+	}
+
 	chapter, err := h.authorRepo.UpdateChapter(c.Context(), chapterID, userID, &req)
 	if err != nil {
 		return c.Status(400).JSON(models.ErrorResponse{Error: err.Error()})
 	}
 
+	h.invalidateNovelCache(c.Context(), h.getNovelSlug(c.Context(), chapter.NovelID, userID))
+
 	return c.JSON(chapter)
+}
+
+// POST /api/author/novels/:id/chapters/bulk — publish/draft/delete selected chapters
+func (h *AuthorHandler) BulkChapterAction(c *fiber.Ctx) error {
+	userID := middleware.GetUserID(c)
+	novelID := c.Params("id")
+
+	var req models.BulkChapterActionRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Invalid request body"})
+	}
+
+	count, err := h.authorRepo.BulkChapterAction(c.Context(), novelID, userID, &req)
+	if err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: err.Error()})
+	}
+
+	h.invalidateNovelCache(c.Context(), h.getNovelSlug(c.Context(), novelID, userID))
+
+	return c.JSON(models.BulkChapterActionResponse{
+		Message: "Bulk chapter action applied",
+		Count:   count,
+	})
 }
 
 // GET /api/author/novels/:id/chapters — list all chapters (including drafts)
@@ -183,10 +313,12 @@ func (h *AuthorHandler) GetMyChapters(c *fiber.Ctx) error {
 func (h *AuthorHandler) DeleteChapter(c *fiber.Ctx) error {
 	userID := middleware.GetUserID(c)
 	chapterID := c.Params("id")
+	slug, _ := h.authorRepo.GetNovelSlugByChapterID(c.Context(), chapterID, userID)
 
 	if err := h.authorRepo.DeleteChapter(c.Context(), chapterID, userID); err != nil {
 		return c.Status(400).JSON(models.ErrorResponse{Error: err.Error()})
 	}
+	h.invalidateNovelCache(c.Context(), slug)
 	return c.JSON(fiber.Map{"message": "Chapter deleted"})
 }
 

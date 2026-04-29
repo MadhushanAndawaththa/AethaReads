@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gosimple/slug"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 type AuthorRepository struct {
@@ -63,6 +65,23 @@ func normalizeChapterStatus(status string) string {
 	default:
 		return "draft"
 	}
+}
+
+func sanitizeChapterIDs(chapterIDs []string) []string {
+	seen := make(map[string]struct{}, len(chapterIDs))
+	cleaned := make([]string, 0, len(chapterIDs))
+	for _, chapterID := range chapterIDs {
+		chapterID = strings.TrimSpace(chapterID)
+		if chapterID == "" {
+			continue
+		}
+		if _, exists := seen[chapterID]; exists {
+			continue
+		}
+		seen[chapterID] = struct{}{}
+		cleaned = append(cleaned, chapterID)
+	}
+	return cleaned
 }
 
 // ===================== Novel Management =====================
@@ -416,6 +435,18 @@ func (r *AuthorRepository) GetChapterByID(ctx context.Context, chapterID, author
 	return &chapter, nil
 }
 
+func (r *AuthorRepository) GetNovelSlugByChapterID(ctx context.Context, chapterID, authorID string) (string, error) {
+	var slug string
+	err := r.db.GetContext(ctx, &slug, `
+		SELECT n.slug FROM chapters c
+		JOIN novels n ON c.novel_id = n.id
+		WHERE c.id = $1 AND n.author_id = $2`, chapterID, authorID)
+	if err != nil {
+		return "", err
+	}
+	return slug, nil
+}
+
 func (r *AuthorRepository) DeleteChapter(ctx context.Context, chapterID, authorID string) error {
 	var ownerID string
 	err := r.db.GetContext(ctx, &ownerID, `
@@ -426,6 +457,82 @@ func (r *AuthorRepository) DeleteChapter(ctx context.Context, chapterID, authorI
 
 	_, err = r.db.ExecContext(ctx, "DELETE FROM chapters WHERE id = $1", chapterID)
 	return err
+}
+
+func (r *AuthorRepository) BulkChapterAction(ctx context.Context, novelID, authorID string, req *models.BulkChapterActionRequest) (int, error) {
+	var ownerID string
+	err := r.db.GetContext(ctx, &ownerID, "SELECT author_id FROM novels WHERE id = $1", novelID)
+	if err != nil || ownerID != authorID {
+		return 0, fmt.Errorf("novel not found or not owned by author")
+	}
+
+	chapterIDs := sanitizeChapterIDs(req.ChapterIDs)
+	if len(chapterIDs) == 0 {
+		return 0, fmt.Errorf("chapter_ids is required")
+	}
+
+	action := strings.ToLower(strings.TrimSpace(req.Action))
+	switch action {
+	case "publish", "draft", "delete":
+	default:
+		return 0, fmt.Errorf("unsupported bulk action")
+	}
+
+	var matched int
+	err = r.db.GetContext(ctx, &matched, `
+		SELECT COUNT(*) FROM chapters WHERE novel_id = $1 AND id = ANY($2)`,
+		novelID, pq.Array(chapterIDs))
+	if err != nil {
+		return 0, err
+	}
+	if matched != len(chapterIDs) {
+		return 0, fmt.Errorf("one or more chapters were not found")
+	}
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	var res sql.Result
+	switch action {
+	case "publish":
+		res, err = tx.ExecContext(ctx, `
+			UPDATE chapters
+			SET status = 'published', published_at = NOW(), updated_at = NOW()
+			WHERE novel_id = $1 AND id = ANY($2)`, novelID, pq.Array(chapterIDs))
+	case "draft":
+		res, err = tx.ExecContext(ctx, `
+			UPDATE chapters
+			SET status = 'draft', published_at = NULL, updated_at = NOW()
+			WHERE novel_id = $1 AND id = ANY($2)`, novelID, pq.Array(chapterIDs))
+	case "delete":
+		res, err = tx.ExecContext(ctx, `
+			DELETE FROM chapters WHERE novel_id = $1 AND id = ANY($2)`, novelID, pq.Array(chapterIDs))
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		UPDATE novels SET chapter_count = (
+			SELECT COUNT(*) FROM chapters WHERE novel_id = $1 AND status = 'published'
+		), updated_at = NOW() WHERE id = $1`, novelID)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+
+	return int(rowsAffected), nil
 }
 
 func (r *AuthorRepository) PublishDueChapters(ctx context.Context) (int, error) {

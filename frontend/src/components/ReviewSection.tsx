@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import type { Review } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { ReportButton } from '@/components/ReportButton';
 
 interface ReviewSectionProps {
   slug: string;
@@ -96,6 +97,7 @@ function ReviewCard({ review, onVote }: { review: Review; onVote: (id: string, h
           >
             👎
           </button>
+          {user.id !== review.user_id && <ReportButton targetType="review" targetId={review.id} compact />}
         </div>
       )}
     </div>

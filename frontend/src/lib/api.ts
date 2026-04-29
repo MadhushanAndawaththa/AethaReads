@@ -15,6 +15,10 @@ import type {
   Chapter,
   ChapterListItem,
   CurrentProfileResponse,
+  Report,
+  AuditLog,
+  HealthStatus,
+  ContentWarning,
 } from './types';
 
 // Server-side fetcher: full URL so Next.js server (inside Docker) can reach the backend directly.
@@ -134,6 +138,9 @@ export const api = {
   getGenres: () =>
     fetcher<{ data: Genre[] }>('/api/genres'),
 
+  getContentWarnings: () =>
+    fetcher<{ data: ContentWarning[] }>('/api/content-warnings'),
+
   // ── Auth ────────────────
   register: (email: string, username: string, password: string) =>
     authFetcher<AuthResponse>('/api/auth/register', {
@@ -168,6 +175,17 @@ export const api = {
       body: JSON.stringify({ token, password }),
     }),
 
+  verifyEmail: (token: string) =>
+    authFetcher<{ message: string }>('/api/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    }),
+
+  resendVerification: () =>
+    authFetcher<{ message: string }>('/api/auth/resend-verification', {
+      method: 'POST',
+    }),
+
   // ── Author ────────────────
   getMyNovels: () =>
     authFetcher<{ data: Novel[] }>('/api/author/novels'),
@@ -177,7 +195,7 @@ export const api = {
 
   createNovel: (data: {
     title: string; description: string; cover_url: string;
-    status: string; language: string; novel_type: string; genre_ids: string[];
+    status: string; language: string; novel_type: string; genre_ids: string[]; warning_ids?: string[];
   }) =>
     authFetcher<Novel>('/api/author/novels', {
       method: 'POST', body: JSON.stringify(data),
@@ -195,7 +213,7 @@ export const api = {
     authFetcher<{ data: ChapterListItem[] }>(`/api/author/novels/${novelId}/chapters`),
 
   createChapter: (novelId: string, data: {
-    title: string; content_md: string; status: string;
+    title: string; content_md: string; status: string; publish_at?: string;
   }) =>
     authFetcher<Chapter>(`/api/author/novels/${novelId}/chapters`, {
       method: 'POST', body: JSON.stringify(data),
@@ -285,6 +303,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  changePassword: (currentPassword: string, newPassword: string) =>
+    authFetcher<{ message: string }>('/api/user/password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
+
   // ── User Profile ────────────────
   getUserProfile: (username: string) =>
     clientFetcher<{ user: import('./types').UserProfile; novels: Novel[] }>(`/api/users/${username}`),
@@ -301,4 +325,39 @@ export const api = {
 
   getAllProgress: () =>
     authFetcher<{ data: ReadingProgress[] }>('/api/user/progress'),
+
+  createReport: (data: { target_type: string; target_id: string; reason: string; details?: string }) =>
+    authFetcher<Report>('/api/reports', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getAdminReports: (status = 'pending', limit = 50) =>
+    authFetcher<{ data: Report[] }>(`/api/admin/reports?status=${encodeURIComponent(status)}&limit=${limit}`),
+
+  updateAdminReport: (id: string, data: { status?: string; action?: string; reason?: string }) =>
+    authFetcher<{ message: string }>(`/api/admin/reports/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  getAuditLogs: (limit = 50) =>
+    authFetcher<{ data: AuditLog[] }>(`/api/admin/audit-logs?limit=${limit}`),
+
+  getAdminUser: (id: string) =>
+    authFetcher<User>(`/api/admin/users/${id}`),
+
+  suspendUser: (id: string, reason: string) =>
+    authFetcher<{ message: string }>(`/api/admin/users/${id}/suspend`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason }),
+    }),
+
+  unsuspendUser: (id: string) =>
+    authFetcher<{ message: string }>(`/api/admin/users/${id}/suspend`, {
+      method: 'DELETE',
+    }),
+
+  getHealth: () =>
+    clientFetcher<HealthStatus>('/api/health'),
 };

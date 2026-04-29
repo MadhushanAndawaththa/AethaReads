@@ -8,6 +8,7 @@ import { formatDate } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
+import { ReportButton } from '@/components/ReportButton';
 
 interface CommentSectionProps {
   chapterId: string;
@@ -37,6 +38,7 @@ function CommentItem({
 }) {
   const isAuthor = comment.user_role === 'author' || comment.user_role === 'admin';
   const canDelete = currentUserId === comment.user_id;
+  const canReport = currentUserId !== undefined && currentUserId !== comment.user_id;
 
   return (
     <div className={`flex gap-3 ${comment.depth > 0 ? 'ml-8 md:ml-10 mt-3' : ''}`}>
@@ -69,6 +71,7 @@ function CommentItem({
               Delete
             </button>
           )}
+          {canReport && <ReportButton targetType="comment" targetId={comment.id} compact />}
         </div>
       </div>
     </div>

@@ -117,6 +117,14 @@ export function Header() {
                         <Link href="/dashboard" className="block px-4 py-2 text-sm hover:bg-[var(--bg-hover)] transition-colors" onClick={() => setShowUserMenu(false)}>
                           Dashboard
                         </Link>
+                        <Link href="/settings" className="block px-4 py-2 text-sm hover:bg-[var(--bg-hover)] transition-colors" onClick={() => setShowUserMenu(false)}>
+                          Settings
+                        </Link>
+                        {user.role === 'admin' && (
+                          <Link href="/admin/reports" className="block px-4 py-2 text-sm hover:bg-[var(--bg-hover)] transition-colors" onClick={() => setShowUserMenu(false)}>
+                            Admin
+                          </Link>
+                        )}
                         <Link href={`/user/${user.username}`} className="block px-4 py-2 text-sm hover:bg-[var(--bg-hover)] transition-colors" onClick={() => setShowUserMenu(false)}>
                           Profile
                         </Link>

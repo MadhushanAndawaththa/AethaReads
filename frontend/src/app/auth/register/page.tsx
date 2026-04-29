@@ -30,7 +30,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       await register(email, username, password);
-      router.push('/');
+      router.push('/auth/verify-email?sent=1');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {

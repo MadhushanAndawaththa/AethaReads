@@ -7,6 +7,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { api } from '@/lib/api';
 import type { Novel } from '@/lib/types';
 import { getLanguageLabel } from '@/lib/utils';
+import { useToast } from '@/components/Toast';
 
 export default function DashboardPage() {
   const { user, loading: authLoading, refreshUser } = useAuth();
@@ -18,6 +19,8 @@ export default function DashboardPage() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAuthorPrompt, setShowAuthorPrompt] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const { toast } = useToast();
 
   const loadData = useCallback(async () => {
     try {
@@ -58,6 +61,18 @@ export default function DashboardPage() {
     }
   };
 
+  const handleResendVerification = async () => {
+    setResendingVerification(true);
+    try {
+      const result = await api.resendVerification();
+      toast(result.message, 'success');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Failed to resend verification email', 'error');
+    } finally {
+      setResendingVerification(false);
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center">
@@ -90,6 +105,21 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      {user && !user.email_verified && (
+        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-5 py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="font-medium text-amber-300">Verify your email to unlock comments, reviews, follows, and reports.</p>
+            <p className="text-sm text-amber-200/80 mt-1">You can still browse and manage your account, but community actions stay locked until verification is complete.</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleResendVerification} disabled={resendingVerification} className="btn-secondary text-sm disabled:opacity-60">
+              {resendingVerification ? 'Sending…' : 'Resend email'}
+            </button>
+            <Link href="/settings" className="btn-primary text-sm">Account settings</Link>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)] mb-2">Overview</p>

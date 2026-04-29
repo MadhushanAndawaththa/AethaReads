@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'Overview' },
   { href: '/dashboard/novel/new', label: 'New Novel' },
   { href: '/dashboard/profile', label: 'Profile' },
+  { href: '/settings', label: 'Settings' },
 ];
 
 export function DashboardShell({ children }: DashboardShellProps) {

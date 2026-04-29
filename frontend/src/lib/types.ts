@@ -29,8 +29,15 @@ export interface Genre {
   slug: string;
 }
 
+export interface ContentWarning {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export interface NovelWithGenres extends Novel {
   genres: Genre[];
+  warnings: ContentWarning[];
 }
 
 export interface AuthorProfileSettings {
@@ -103,11 +110,13 @@ export interface SearchResponse {
 
 export interface User {
   id: string;
+  email?: string;
   username: string;
   display_name: string;
   avatar_url: string;
   role: string;
   bio: string;
+  email_verified: boolean;
   created_at: string;
 }
 
@@ -133,6 +142,8 @@ export interface Comment {
   display_name: string;
   avatar_url: string;
   user_role: string;
+  hidden?: boolean;
+  hidden_reason?: string;
   created_at: string;
   updated_at: string;
 }
@@ -152,8 +163,44 @@ export interface Review {
   username: string;
   display_name: string;
   avatar_url: string;
+  hidden?: boolean;
+  hidden_reason?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface Report {
+  id: string;
+  reporter_id: string;
+  target_type: string;
+  target_id: string;
+  reason: string;
+  details: string;
+  status: string;
+  reviewed_by?: string | null;
+  reporter_username?: string;
+  reporter_display_name?: string;
+  created_at: string;
+  resolved_at?: string | null;
+}
+
+export interface AuditLog {
+  id: string;
+  actor_id?: string | null;
+  action: string;
+  resource_type: string;
+  resource_id?: string | null;
+  details: string;
+  created_at: string;
+}
+
+export interface HealthStatus {
+  status: string;
+  service: string;
+  version: string;
+  postgres: boolean;
+  redis: boolean;
+  timestamp: string;
 }
 
 export interface Notification {

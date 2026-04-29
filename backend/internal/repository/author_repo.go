@@ -54,6 +54,17 @@ func normalizeNovelLanguage(language string) string {
 	}
 }
 
+func normalizeChapterStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "published":
+		return "published"
+	case "scheduled":
+		return "scheduled"
+	default:
+		return "draft"
+	}
+}
+
 // ===================== Novel Management =====================
 
 func (r *AuthorRepository) CreateNovel(ctx context.Context, authorID string, req *models.CreateNovelRequest) (*models.Novel, error) {
@@ -84,6 +95,15 @@ func (r *AuthorRepository) CreateNovel(ctx context.Context, authorID string, req
 		_, err = tx.ExecContext(ctx,
 			"INSERT INTO novel_genres (novel_id, genre_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
 			id, gID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for _, warningID := range req.WarningIDs {
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO novel_warnings (novel_id, warning_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+			id, warningID)
 		if err != nil {
 			return nil, err
 		}
@@ -126,8 +146,13 @@ func (r *AuthorRepository) UpdateNovel(ctx context.Context, novelID, authorID st
 		args = append(args, normalizeNovelLanguage(*req.Language))
 		idx++
 	}
+	if req.NovelType != nil {
+		sets = append(sets, "novel_type = $"+strconv.Itoa(idx))
+		args = append(args, normalizeNovelType(*req.NovelType))
+		idx++
+	}
 
-	if len(sets) == 0 && len(req.GenreIDs) == 0 {
+	if len(sets) == 0 && len(req.GenreIDs) == 0 && len(req.WarningIDs) == 0 {
 		// Nothing to update
 		novel := &models.Novel{}
 		err := r.db.GetContext(ctx, novel, "SELECT * FROM novels WHERE id = $1 AND author_id = $2", novelID, authorID)
@@ -161,6 +186,15 @@ func (r *AuthorRepository) UpdateNovel(ctx context.Context, novelID, authorID st
 		}
 	}
 
+	if req.WarningIDs != nil {
+		_, _ = tx.ExecContext(ctx, "DELETE FROM novel_warnings WHERE novel_id = $1", novelID)
+		for _, warningID := range req.WarningIDs {
+			_, _ = tx.ExecContext(ctx,
+				"INSERT INTO novel_warnings (novel_id, warning_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+				novelID, warningID)
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -187,10 +221,15 @@ func (r *AuthorRepository) GetAuthorNovel(ctx context.Context, novelID, authorID
 	if err != nil {
 		return nil, err
 	}
+	warnings, err := NewNovelRepository(r.db).GetWarningsByNovelID(ctx, novelID)
+	if err != nil {
+		return nil, err
+	}
 
 	return &models.NovelWithGenres{
-		Novel:  *novel,
-		Genres: genres,
+		Novel:    *novel,
+		Genres:   genres,
+		Warnings: warnings,
 	}, nil
 }
 
@@ -226,15 +265,21 @@ func (r *AuthorRepository) CreateChapter(ctx context.Context, novelID, authorID 
 	content := req.ContentMD // Store markdown; in production, also convert to sanitized HTML
 	wordCount := len(strings.Fields(content))
 
-	status := req.Status
-	if status == "" {
-		status = "draft"
-	}
+	status := normalizeChapterStatus(req.Status)
 
 	var publishedAt *time.Time
 	if status == "published" {
 		now := time.Now()
 		publishedAt = &now
+	} else if status == "scheduled" {
+		if strings.TrimSpace(req.PublishAt) == "" {
+			return nil, fmt.Errorf("publish_at is required for scheduled chapters")
+		}
+		parsed, err := time.Parse(time.RFC3339, req.PublishAt)
+		if err != nil {
+			return nil, fmt.Errorf("publish_at must be a valid ISO8601 timestamp")
+		}
+		publishedAt = &parsed
 	}
 
 	chapter := &models.Chapter{}
@@ -289,11 +334,25 @@ func (r *AuthorRepository) UpdateChapter(ctx context.Context, chapterID, authorI
 		idx++
 	}
 	if req.Status != nil {
+		normalizedStatus := normalizeChapterStatus(*req.Status)
 		sets = append(sets, "status = $"+strconv.Itoa(idx))
-		args = append(args, *req.Status)
+		args = append(args, normalizedStatus)
 		idx++
-		if *req.Status == "published" {
+		if normalizedStatus == "published" {
 			sets = append(sets, "published_at = NOW()")
+		} else if normalizedStatus == "draft" {
+			sets = append(sets, "published_at = NULL")
+		} else if normalizedStatus == "scheduled" {
+			if req.PublishAt == nil || strings.TrimSpace(*req.PublishAt) == "" {
+				return nil, fmt.Errorf("publish_at is required for scheduled chapters")
+			}
+			parsed, err := time.Parse(time.RFC3339, *req.PublishAt)
+			if err != nil {
+				return nil, fmt.Errorf("publish_at must be a valid ISO8601 timestamp")
+			}
+			sets = append(sets, "published_at = $"+strconv.Itoa(idx))
+			args = append(args, parsed)
+			idx++
 		}
 	}
 
@@ -367,6 +426,38 @@ func (r *AuthorRepository) DeleteChapter(ctx context.Context, chapterID, authorI
 
 	_, err = r.db.ExecContext(ctx, "DELETE FROM chapters WHERE id = $1", chapterID)
 	return err
+}
+
+func (r *AuthorRepository) PublishDueChapters(ctx context.Context) (int, error) {
+	rows, err := r.db.QueryxContext(ctx, `
+		UPDATE chapters
+		SET status = 'published', updated_at = NOW()
+		WHERE status = 'scheduled' AND published_at IS NOT NULL AND published_at <= NOW()
+		RETURNING novel_id`)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	affected := map[string]struct{}{}
+	count := 0
+	for rows.Next() {
+		var novelID string
+		if err := rows.Scan(&novelID); err != nil {
+			return count, err
+		}
+		affected[novelID] = struct{}{}
+		count++
+	}
+
+	for novelID := range affected {
+		_, _ = r.db.ExecContext(ctx, `
+			UPDATE novels SET chapter_count = (
+				SELECT COUNT(*) FROM chapters WHERE novel_id = $1 AND status = 'published'
+			), updated_at = NOW() WHERE id = $1`, novelID)
+	}
+
+	return count, rows.Err()
 }
 
 // ===================== Analytics =====================

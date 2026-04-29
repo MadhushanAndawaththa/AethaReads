@@ -141,3 +141,22 @@ func (r *NovelRepository) GetAllGenres(ctx context.Context) ([]models.Genre, err
 	err := r.db.SelectContext(ctx, &genres, "SELECT * FROM genres ORDER BY name")
 	return genres, err
 }
+
+func (r *NovelRepository) GetWarningsByNovelID(ctx context.Context, novelID string) ([]models.ContentWarning, error) {
+	var warnings []models.ContentWarning
+	err := r.db.SelectContext(ctx, &warnings, `
+		SELECT w.* FROM content_warnings w
+		JOIN novel_warnings nw ON w.id = nw.warning_id
+		WHERE nw.novel_id = $1
+		ORDER BY w.name`, novelID)
+	if err != nil {
+		return nil, err
+	}
+	return warnings, nil
+}
+
+func (r *NovelRepository) GetAllContentWarnings(ctx context.Context) ([]models.ContentWarning, error) {
+	var warnings []models.ContentWarning
+	err := r.db.SelectContext(ctx, &warnings, "SELECT * FROM content_warnings ORDER BY name")
+	return warnings, err
+}

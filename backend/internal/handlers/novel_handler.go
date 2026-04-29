@@ -88,6 +88,7 @@ func (h *NovelHandler) GetNovelBySlug(c *fiber.Ctx) error {
 	}
 
 	genres, _ := h.novelRepo.GetGenresByNovelID(ctx, novel.ID)
+	warnings, _ := h.novelRepo.GetWarningsByNovelID(ctx, novel.ID)
 	chapters, _ := h.chapterRepo.GetByNovelID(ctx, novel.ID)
 
 	// Increment views async
@@ -95,8 +96,9 @@ func (h *NovelHandler) GetNovelBySlug(c *fiber.Ctx) error {
 
 	resp := &models.NovelDetailResponse{
 		Novel: models.NovelWithGenres{
-			Novel:  *novel,
-			Genres: genres,
+			Novel:    *novel,
+			Genres:   genres,
+			Warnings: warnings,
 		},
 		Chapters: chapters,
 	}
@@ -177,4 +179,13 @@ func (h *NovelHandler) GetGenres(c *fiber.Ctx) error {
 		return c.Status(500).JSON(models.ErrorResponse{Error: "Failed to fetch genres"})
 	}
 	return c.JSON(fiber.Map{"data": genres})
+}
+
+// GET /api/content-warnings - List all content warnings
+func (h *NovelHandler) GetContentWarnings(c *fiber.Ctx) error {
+	warnings, err := h.novelRepo.GetAllContentWarnings(c.Context())
+	if err != nil {
+		return c.Status(500).JSON(models.ErrorResponse{Error: "Failed to fetch content warnings"})
+	}
+	return c.JSON(fiber.Map{"data": warnings})
 }

@@ -20,9 +20,9 @@ func NewChapterRepository(db *sqlx.DB) *ChapterRepository {
 func (r *ChapterRepository) GetByNovelID(ctx context.Context, novelID string) ([]models.ChapterListItem, error) {
 	var chapters []models.ChapterListItem
 	err := r.db.SelectContext(ctx, &chapters, `
-		SELECT id, novel_id, chapter_number, title, word_count, views, created_at 
+		SELECT id, novel_id, chapter_number, title, word_count, views, status, published_at, created_at 
 		FROM chapters 
-		WHERE novel_id = $1 
+		WHERE novel_id = $1 AND status = 'published'
 		ORDER BY chapter_number ASC`, novelID)
 	if err != nil {
 		return nil, err
@@ -34,7 +34,7 @@ func (r *ChapterRepository) GetChapter(ctx context.Context, novelID string, chap
 	chapter := &models.Chapter{}
 	err := r.db.GetContext(ctx, chapter, `
 		SELECT * FROM chapters 
-		WHERE novel_id = $1 AND chapter_number = $2`, novelID, chapterNumber)
+		WHERE novel_id = $1 AND chapter_number = $2 AND status = 'published'`, novelID, chapterNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func (r *ChapterRepository) GetChapter(ctx context.Context, novelID string, chap
 
 func (r *ChapterRepository) GetTotalChapters(ctx context.Context, novelID string) (int, error) {
 	var total int
-	err := r.db.GetContext(ctx, &total, "SELECT COUNT(*) FROM chapters WHERE novel_id = $1", novelID)
+	err := r.db.GetContext(ctx, &total, "SELECT COUNT(*) FROM chapters WHERE novel_id = $1 AND status = 'published'", novelID)
 	return total, err
 }
 
@@ -65,7 +65,7 @@ func (r *ChapterRepository) GetAdjacentChapters(ctx context.Context, novelID str
 	var prevNum int
 	err := r.db.GetContext(ctx, &prevNum, `
 		SELECT chapter_number FROM chapters 
-		WHERE novel_id = $1 AND chapter_number < $2 
+		WHERE novel_id = $1 AND chapter_number < $2 AND status = 'published'
 		ORDER BY chapter_number DESC LIMIT 1`, novelID, currentNum)
 	if err == nil {
 		prev = &prevNum
@@ -74,7 +74,7 @@ func (r *ChapterRepository) GetAdjacentChapters(ctx context.Context, novelID str
 	var nextNum int
 	err = r.db.GetContext(ctx, &nextNum, `
 		SELECT chapter_number FROM chapters 
-		WHERE novel_id = $1 AND chapter_number > $2 
+		WHERE novel_id = $1 AND chapter_number > $2 AND status = 'published'
 		ORDER BY chapter_number ASC LIMIT 1`, novelID, currentNum)
 	if err == nil {
 		next = &nextNum
@@ -89,6 +89,7 @@ func (r *ChapterRepository) GetRecentChapters(ctx context.Context, limit int) ([
 	err := r.db.SelectContext(ctx, &chapters, `
 		SELECT c.* FROM chapters c
 		JOIN novels n ON c.novel_id = n.id
+		WHERE c.status = 'published'
 		ORDER BY c.updated_at DESC
 		LIMIT $1`, limit)
 	return chapters, err

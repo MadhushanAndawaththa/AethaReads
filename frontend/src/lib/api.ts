@@ -16,6 +16,7 @@ import type {
   ChapterListItem,
   ChapterBulkAction,
   BulkChapterActionResponse,
+  ValidatedCover,
   CurrentProfileResponse,
   Report,
   AuditLog,
@@ -191,6 +192,11 @@ export const api = {
   // ── Author ────────────────
   getMyNovels: () =>
     authFetcher<{ data: Novel[] }>('/api/author/novels'),
+
+  validateCover: (coverUrl: string) =>
+    authFetcher<ValidatedCover>('/api/author/covers/validate', {
+      method: 'POST', body: JSON.stringify({ cover_url: coverUrl }),
+    }),
 
   getMyNovel: (id: string) =>
     authFetcher<{ novel: NovelWithGenres }>(`/api/author/novels/${id}`),

@@ -85,6 +85,12 @@ export interface BulkChapterActionResponse {
   count: number;
 }
 
+export interface ValidatedCover {
+  cover_url: string;
+  provider: string;
+  is_local: boolean;
+}
+
 export interface PaginatedResponse<T> {
   data: T[];
   page: number;

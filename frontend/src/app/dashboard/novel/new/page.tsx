@@ -14,6 +14,9 @@ export default function NewNovelPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
+  const [validatedCoverUrl, setValidatedCoverUrl] = useState('');
+  const [coverSource, setCoverSource] = useState('');
+  const [coverMessage, setCoverMessage] = useState('');
   const [novelType, setNovelType] = useState('web_novel');
   const [status, setStatus] = useState('ongoing');
   const [language, setLanguage] = useState<NovelLanguage>('en');
@@ -21,6 +24,7 @@ export default function NewNovelPage() {
   const [selectedWarnings, setSelectedWarnings] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [validatingCover, setValidatingCover] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -41,16 +45,48 @@ export default function NewNovelPage() {
     );
   };
 
+  const handleCoverChange = (value: string) => {
+    setCoverUrl(value);
+    if (value.trim() !== validatedCoverUrl) {
+      setValidatedCoverUrl('');
+      setCoverSource('');
+      setCoverMessage(value.trim() ? 'Validate this cover before saving.' : '');
+    }
+  };
+
+  const validateCover = async () => {
+    const rawCoverUrl = coverUrl.trim();
+    if (!rawCoverUrl) {
+      setValidatedCoverUrl('');
+      setCoverSource('');
+      setCoverMessage('');
+      return '';
+    }
+
+    setValidatingCover(true);
+    try {
+      const result = await api.validateCover(rawCoverUrl);
+      setCoverUrl(result.cover_url);
+      setValidatedCoverUrl(result.cover_url);
+      setCoverSource(result.provider);
+      setCoverMessage(result.is_local ? 'Using an app-hosted cover path.' : `Validated ${result.provider} cover URL.`);
+      return result.cover_url;
+    } finally {
+      setValidatingCover(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) { setError('Title is required'); return; }
     setError('');
     setSubmitting(true);
     try {
+      const nextCoverUrl = coverUrl.trim() ? await validateCover() : '';
       await api.createNovel({
         title: title.trim(),
         description: description.trim(),
-        cover_url: coverUrl.trim(),
+        cover_url: nextCoverUrl,
         status,
         language,
         novel_type: novelType,
@@ -104,22 +140,39 @@ export default function NewNovelPage() {
         </div>
 
         <div>
-          <label htmlFor="novel-cover-url" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Cover Image URL</label>
-          <input
-            id="novel-cover-url"
-            type="url"
-            value={coverUrl}
-            onChange={(e) => setCoverUrl(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition"
-            placeholder="https://..."
-          />
+          <label htmlFor="novel-cover-url" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Cover Source</label>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <input
+              id="novel-cover-url"
+              type="text"
+              value={coverUrl}
+              onChange={(e) => handleCoverChange(e.target.value)}
+              onBlur={() => {
+                if (coverUrl.trim() && coverUrl.trim() !== validatedCoverUrl) {
+                  void validateCover().catch(() => {});
+                }
+              }}
+              className="w-full px-4 py-3 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none transition"
+              placeholder="/covers/example.jpg or https://res.cloudinary.com/..."
+            />
+            <div className="flex gap-2">
+              <button type="button" onClick={() => validateCover().catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to validate cover'))} disabled={!coverUrl.trim() || validatingCover} className="btn-secondary text-sm disabled:opacity-50">
+                {validatingCover ? 'Validating…' : 'Validate'}
+              </button>
+              <button type="button" onClick={() => { setCoverUrl(''); setValidatedCoverUrl(''); setCoverSource(''); setCoverMessage(''); }} className="btn-secondary text-sm">
+                Remove
+              </button>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-[var(--text-muted)]">Accepted sources: local `/covers/...` or `/uploads/covers/...` paths, Cloudinary, Supabase, Cloudflare, Amazon S3, and `http://localhost/...` in development.</p>
+          {coverMessage && <p className="mt-2 text-xs text-emerald-400">{coverMessage}{coverSource ? ` (${coverSource})` : ''}</p>}
         </div>
 
-        {coverUrl && (
+        {validatedCoverUrl && (
           <div className="card p-4">
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--text-muted)] mb-3">Cover Preview</p>
             <div className="w-32 aspect-[3/4] rounded-xl overflow-hidden border border-[var(--border-color)] bg-[var(--bg-secondary)]">
-              <img src={coverUrl} alt="Novel cover preview" className="w-full h-full object-cover" />
+              <img src={validatedCoverUrl} alt="Novel cover preview" className="w-full h-full object-cover" />
             </div>
           </div>
         )}

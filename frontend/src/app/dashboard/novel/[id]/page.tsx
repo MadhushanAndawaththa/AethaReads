@@ -28,6 +28,9 @@ export default function ManageNovelPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
+  const [validatedCoverUrl, setValidatedCoverUrl] = useState('');
+  const [coverSource, setCoverSource] = useState('');
+  const [coverMessage, setCoverMessage] = useState('');
   const [status, setStatus] = useState('ongoing');
   const [language, setLanguage] = useState<NovelLanguage>('en');
   const [novelType, setNovelType] = useState('web_novel');
@@ -35,6 +38,7 @@ export default function ManageNovelPage() {
   const [selectedWarnings, setSelectedWarnings] = useState<string[]>([]);
   const [selectedChapterIds, setSelectedChapterIds] = useState<string[]>([]);
   const [chapterFilter, setChapterFilter] = useState<'all' | 'draft' | 'published' | 'scheduled'>('all');
+  const [validatingCover, setValidatingCover] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -53,6 +57,9 @@ export default function ManageNovelPage() {
       setTitle(novelRes.novel.title);
       setDescription(novelRes.novel.description || '');
       setCoverUrl(novelRes.novel.cover_url || '');
+      setValidatedCoverUrl(novelRes.novel.cover_url || '');
+      setCoverSource('');
+      setCoverMessage('');
       setStatus(novelRes.novel.status || 'ongoing');
       setLanguage(novelRes.novel.language);
       setNovelType(novelRes.novel.novel_type || 'web_novel');
@@ -98,6 +105,37 @@ export default function ManageNovelPage() {
     setSelectedWarnings((prev) => prev.includes(warningId) ? prev.filter((id) => id !== warningId) : [...prev, warningId]);
   };
 
+  const handleCoverChange = (value: string) => {
+    setCoverUrl(value);
+    if (value.trim() !== validatedCoverUrl) {
+      setValidatedCoverUrl('');
+      setCoverSource('');
+      setCoverMessage(value.trim() ? 'Validate this cover before saving.' : '');
+    }
+  };
+
+  const validateCover = async () => {
+    const rawCoverUrl = coverUrl.trim();
+    if (!rawCoverUrl) {
+      setValidatedCoverUrl('');
+      setCoverSource('');
+      setCoverMessage('');
+      return '';
+    }
+
+    setValidatingCover(true);
+    try {
+      const result = await api.validateCover(rawCoverUrl);
+      setCoverUrl(result.cover_url);
+      setValidatedCoverUrl(result.cover_url);
+      setCoverSource(result.provider);
+      setCoverMessage(result.is_local ? 'Using an app-hosted cover path.' : `Validated ${result.provider} cover URL.`);
+      return result.cover_url;
+    } finally {
+      setValidatingCover(false);
+    }
+  };
+
   const toggleChapterSelection = (chapterId: string) => {
     setSelectedChapterIds((prev) => prev.includes(chapterId) ? prev.filter((id) => id !== chapterId) : [...prev, chapterId]);
   };
@@ -117,10 +155,11 @@ export default function ManageNovelPage() {
     setError('');
     setSuccess('');
     try {
+      const nextCoverUrl = coverUrl.trim() ? await validateCover() : '';
       await api.updateNovel(id, {
         title: title.trim(),
         description: description.trim(),
-        cover_url: coverUrl.trim(),
+        cover_url: nextCoverUrl,
         status,
         language,
         novel_type: novelType,
@@ -228,8 +267,24 @@ export default function ManageNovelPage() {
               <input id="novel-title" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] outline-none focus:border-brand-500" />
             </div>
             <div>
-              <label htmlFor="novel-cover" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Cover URL</label>
-              <input id="novel-cover" value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} placeholder="https://..." className="w-full px-4 py-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] outline-none focus:border-brand-500" />
+              <label htmlFor="novel-cover" className="block text-sm font-medium mb-1.5 text-[var(--text-secondary)]">Cover Source</label>
+              <div className="flex flex-col gap-3">
+                <input id="novel-cover" value={coverUrl} onChange={(e) => handleCoverChange(e.target.value)} onBlur={() => {
+                  if (coverUrl.trim() && coverUrl.trim() !== validatedCoverUrl) {
+                    void validateCover().catch(() => {});
+                  }
+                }} placeholder="/covers/example.jpg or https://res.cloudinary.com/..." className="w-full px-4 py-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] outline-none focus:border-brand-500" />
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => validateCover().catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to validate cover'))} disabled={!coverUrl.trim() || validatingCover} className="btn-secondary text-sm disabled:opacity-50">
+                    {validatingCover ? 'Validating…' : 'Validate'}
+                  </button>
+                  <button type="button" onClick={() => { setCoverUrl(''); setValidatedCoverUrl(''); setCoverSource(''); setCoverMessage(''); }} className="btn-secondary text-sm">
+                    Remove
+                  </button>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-[var(--text-muted)]">Accepted sources: local `/covers/...` or `/uploads/covers/...` paths, Cloudinary, Supabase, Cloudflare, Amazon S3, and `http://localhost/...` in development.</p>
+              {coverMessage && <p className="mt-2 text-xs text-emerald-400">{coverMessage}{coverSource ? ` (${coverSource})` : ''}</p>}
             </div>
           </div>
 
@@ -319,7 +374,7 @@ export default function ManageNovelPage() {
             <div className="rounded-2xl border border-[var(--border-color)] overflow-hidden">
               <div className="aspect-[3/4] bg-[var(--bg-secondary)] flex items-center justify-center">
                 {coverUrl ? (
-                  <img src={coverUrl} alt={title || 'Novel cover'} className="w-full h-full object-cover" />
+                  <img src={validatedCoverUrl || coverUrl} alt={title || 'Novel cover'} className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-4xl text-[var(--text-muted)]">📖</span>
                 )}

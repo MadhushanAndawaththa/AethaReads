@@ -150,6 +150,7 @@ func Setup(app *fiber.App, h *Handlers, userRepo *repository.UserRepository, all
 
 		authorProtected := author.Group("", middleware.RequireRole("author", "admin"), middleware.RequireCSRF(jwtSecret))
 		authorProtected.Get("/novels", h.Author.GetMyNovels)
+		authorProtected.Post("/covers/validate", h.Author.ValidateCover)
 		authorProtected.Get("/novels/:id", h.Author.GetMyNovel)
 		authorProtected.Post("/novels", h.Author.CreateNovel)
 		authorProtected.Put("/novels/:id", h.Author.UpdateNovel)

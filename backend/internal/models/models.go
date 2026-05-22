@@ -332,6 +332,10 @@ type BulkChapterActionRequest struct {
 	Action     string   `json:"action"`
 }
 
+type ValidateCoverRequest struct {
+	CoverURL string `json:"cover_url"`
+}
+
 type CreateCommentRequest struct {
 	Body     string  `json:"body"`
 	ParentID *string `json:"parent_id"`
@@ -386,6 +390,12 @@ type NovelDetailResponse struct {
 type BulkChapterActionResponse struct {
 	Message string `json:"message"`
 	Count   int    `json:"count"`
+}
+
+type ValidateCoverResponse struct {
+	CoverURL string `json:"cover_url"`
+	Provider string `json:"provider"`
+	IsLocal  bool   `json:"is_local"`
 }
 
 type ChapterReadResponse struct {

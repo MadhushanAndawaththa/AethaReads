@@ -102,6 +102,12 @@ func (h *AuthorHandler) CreateNovel(c *fiber.Ctx) error {
 		return c.Status(400).JSON(models.ErrorResponse{Error: "Title is required"})
 	}
 
+	normalizedCoverURL, err := normalizeOptionalCoverURL(req.CoverURL)
+	if err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: err.Error()})
+	}
+	req.CoverURL = normalizedCoverURL
+
 	// Ensure user is an author (auto-promote)
 	user, err := h.userRepo.GetByID(c.Context(), userID)
 	if err != nil {
@@ -131,6 +137,13 @@ func (h *AuthorHandler) UpdateNovel(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(models.ErrorResponse{Error: "Invalid request body"})
 	}
+	if req.CoverURL != nil {
+		normalizedCoverURL, err := normalizeOptionalCoverURL(*req.CoverURL)
+		if err != nil {
+			return c.Status(400).JSON(models.ErrorResponse{Error: err.Error()})
+		}
+		req.CoverURL = &normalizedCoverURL
+	}
 
 	novel, err := h.authorRepo.UpdateNovel(c.Context(), novelID, userID, &req)
 	if err != nil {
@@ -142,6 +155,28 @@ func (h *AuthorHandler) UpdateNovel(c *fiber.Ctx) error {
 		h.cache.InvalidateNovel(c.Context(), novel.Slug)
 	}
 	return c.JSON(novel)
+}
+
+// POST /api/author/covers/validate — validate and normalize cover input
+func (h *AuthorHandler) ValidateCover(c *fiber.Ctx) error {
+	var req models.ValidateCoverRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "Invalid request body"})
+	}
+
+	normalizedCoverURL, provider, isLocal, err := normalizeCoverURL(req.CoverURL)
+	if err != nil {
+		return c.Status(400).JSON(models.ErrorResponse{Error: err.Error()})
+	}
+	if normalizedCoverURL == "" {
+		return c.Status(400).JSON(models.ErrorResponse{Error: "cover_url is required"})
+	}
+
+	return c.JSON(models.ValidateCoverResponse{
+		CoverURL: normalizedCoverURL,
+		Provider: provider,
+		IsLocal:  isLocal,
+	})
 }
 
 // GET /api/author/novels — list author's novels
